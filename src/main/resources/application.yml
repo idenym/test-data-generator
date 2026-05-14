@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/testdatagen;AUTO_SERVER=TRUE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+app:
+  openai:
+    api-key: ${OPENAI_API_KEY:tp-c5qpksrxxpk6s513f4e9j70abxgdr8k8hm6j7cncwndmm4qj}
+    base-url: ${OPENAI_BASE_URL:https://token-plan-cn.xiaomimimo.com/}
+    model: ${OPENAI_MODEL:mimo-v2.5-pro}
+    max-tokens: 10000
+    temperature: 0.8
+    timeout-seconds: 60
+    models:
+      # 新增模型只需在此处添加配置项，格式如下：
+      # "[模型ID]":
+      #   base-url: API地址
+      #   api-key: API密钥
+      #   name: 前端显示名称
+      #   max-tokens: (可选) 覆盖全局默认值
+      #   temperature: (可选) 覆盖全局默认值
+      #   timeout-seconds: (可选) 覆盖全局默认值
+      #   enable-thinking: (可选) 覆盖全局默认值
+      "[mimo-v2.5-pro]":
+        base-url: https://token-plan-cn.xiaomimimo.com/
+        api-key: tp-c5qpksrxxpk6s513f4e9j70abxgdr8k8hm6j7cncwndmm4qj
+        name: Mimo V2.5 Pro
+      "[deepseek-v4-pro]":
+        base-url: https://api.deepseek.com
+        api-key: sk-fc9ab4f2edbd465190f87e9e4ecafefb
+        name: DeepSeek V4 Pro
+  encryption:
+    secret-key: ${ENCRYPTION_KEY:default-dev-key-change-me-in-production}
+  generation:
+    default-batch-size: 100
+    max-batch-size: 10000
+    insert-batch-size: 500
+    llm-batch-size: 50

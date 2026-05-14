@@ -1,0 +1,36 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# H2 Database files
+*.db
+*.mv.db
+*.trace.db
+
+# Logs
+*.log
+logs/
+
+# Build
+build/
+
+# Qoder
+.qoder/

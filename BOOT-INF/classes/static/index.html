@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestDataGen — 测试数据构造工具</title>
+    <meta name="description" content="智能测试数据构造工具，解析SQL自动生成符合Schema约束的测试数据">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css?v=11">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-mark" @click="backToFlow" style="cursor:pointer;">⚡</div>
+                <span class="logo-text" @click="backToFlow" style="cursor:pointer;">TestDataGen</span>
+                <span class="logo-subtitle">测试数据构造工具</span>
+            </div>
+            <div class="header-right">
+                <button class="btn header-history-btn"
+                        :class="{ active: showHistory }"
+                        @click="toggleHistory">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    执行历史
+                </button>
+            </div>
+        </header>
+
+        <!-- Stepper (仅在主流程时显示) -->
+        <nav class="stepper-container" v-if="!showHistory">
+            <div class="stepper">
+                <template v-for="(step, index) in steps" :key="step.key">
+                    <div class="step-item"
+                         :class="{ active: currentStep === index, completed: index < currentStep }"
+                         @click="goToStep(index)">
+                        <div class="step-number">
+                            <template v-if="index < currentStep">✓</template>
+                            <template v-else>{{ index + 1 }}</template>
+                        </div>
+                        <span class="step-label">{{ step.title }}</span>
+                    </div>
+                    <div v-if="index < steps.length - 1"
+                         class="step-connector"
+                         :class="{ completed: index < currentStep }">
+                    </div>
+                </template>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- 主流程 4 步 -->
+            <template v-if="!showHistory">
+                <connection-page v-if="currentStep === 0"
+                    ref="connPage"
+                    @connection-selected="onConnectionSelected"
+                    @next="nextStep">
+                </connection-page>
+
+                <sql-input-page v-if="currentStep === 1"
+                    :connection-id="selectedConnectionId"
+                    @analysis-done="onAnalysisDone"
+                    @prev="prevStep"
+                    @next="nextStep">
+                </sql-input-page>
+
+                <rule-config-page v-if="currentStep === 2"
+                    :connection-id="selectedConnectionId"
+                    :analysis-result="analysisResult"
+                    @update-rules="onUpdateFieldRules"
+                    @prev="prevStep"
+                    @next="nextStep">
+                </rule-config-page>
+
+                <generate-page v-if="currentStep === 3"
+                    :connection-id="selectedConnectionId"
+                    :analysis-result="analysisResult"
+                    :current-sql="currentSql"
+                    :field-rules="fieldRules"
+                    @prev="prevStep">
+                </generate-page>
+            </template>
+
+            <!-- 独立的执行历史视图 -->
+            <history-page v-if="showHistory"
+                @back="showHistory = false">
+            </history-page>
+        </main>
+
+        <!-- Toast Container -->
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3.4.15/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios@1.6.5/dist/axios.min.js"></script>
+    <script src="/js/api.js?v=11"></script>
+    <script src="/js/toast.js?v=11"></script>
+    <script src="/js/pages/ConnectionPage.js?v=11"></script>
+    <script src="/js/pages/SqlInputPage.js?v=11"></script>
+    <script src="/js/pages/RuleConfigPage.js?v=11"></script>
+    <script src="/js/pages/GeneratePage.js?v=11"></script>
+    <script src="/js/pages/HistoryPage.js?v=11"></script>
+    <script src="/js/app.js?v=11"></script>
+</body>
+</html>
