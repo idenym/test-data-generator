@@ -1,5 +1,6 @@
 package com.testdatagen.service;
 
+import com.testdatagen.model.dto.ColumnMetadata;
 import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.dto.SqlAnalysisResult.RelationInfo;
 import com.testdatagen.model.dto.SqlAnalysisResult.WhereHint;
@@ -62,8 +63,12 @@ public class SqlParserService {
 
         result.setTables(new ArrayList<>(tables));
 
-        // Fetch metadata for all tables
-        Map<String, TableMetadata> metadataMap = new LinkedHashMap<>();
+        // 使用大小写不敏感的TreeMap，确保不同大小写的同一表名不会重复存储
+        Map<String, TableMetadata> metadataMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+        // 收集FK发现的新表名，避免在迭代tables时修改导致ConcurrentModificationException
+        Set<String> fkDiscoveredTables = new LinkedHashSet<>();
+
         try (Connection conn = connectionService.getConnection(connectionId)) {
             for (String tableName : tables) {
                 try {
@@ -72,28 +77,41 @@ public class SqlParserService {
 
                     // Discover FK-based relations from metadata
                     if (meta.getColumns() != null) {
-                        meta.getColumns().stream()
-                                .filter(c -> c.getReferencedTable() != null)
-                                .forEach(c -> {
-                                    RelationInfo rel = new RelationInfo();
-                                    rel.setFromTable(tableName);
-                                    rel.setFromColumn(c.getColumnName());
-                                    rel.setToTable(c.getReferencedTable());
-                                    rel.setToColumn(c.getReferencedColumn());
-                                    rel.setJoinType("FK");
-                                    tables.add(c.getReferencedTable());
-                                    if (!hasDuplicateRelation(relations, rel)) {
-                                        relations.add(rel);
-                                    }
-                                });
+                        for (com.testdatagen.model.dto.ColumnMetadata c : meta.getColumns()) {
+                            if (c.getReferencedTable() == null) continue;
+                            // 统一FK引用表名为小写，确保与tables中的key一致
+                            String refTable = c.getReferencedTable().toLowerCase();
+                            RelationInfo rel = new RelationInfo();
+                            rel.setFromTable(tableName);
+                            rel.setFromColumn(c.getColumnName());
+                            rel.setToTable(refTable);
+                            rel.setToColumn(c.getReferencedColumn());
+                            rel.setJoinType("FK");
+                            // 如果tables中已存在（忽略大小写），则跳过添加
+                            boolean alreadyExists = tables.stream()
+                                    .anyMatch(t -> t.equalsIgnoreCase(refTable));
+                            if (!alreadyExists) {
+                                fkDiscoveredTables.add(refTable);
+                            }
+                            if (!hasDuplicateRelation(relations, rel)) {
+                                relations.add(rel);
+                                log.info("发现FK关系: {}.{} → {}.{}", tableName, c.getColumnName(), refTable, c.getReferencedColumn());
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     warnings.add("获取表 " + tableName + " 的元数据失败: " + e.getMessage());
                 }
             }
 
+            // 将FK发现的新表加入tables集合
+            if (!fkDiscoveredTables.isEmpty()) {
+                log.info("FK发现的新表(不在原始SQL中): {}", fkDiscoveredTables);
+                tables.addAll(fkDiscoveredTables);
+            }
+
             // Fetch metadata for newly discovered FK-referenced tables
-            for (String tableName : new ArrayList<>(tables)) {
+            for (String tableName : fkDiscoveredTables) {
                 if (!metadataMap.containsKey(tableName)) {
                     try {
                         metadataMap.put(tableName, metadataService.getTableMetadata(conn, tableName));
@@ -106,11 +124,40 @@ public class SqlParserService {
             warnings.add("连接数据库失败: " + e.getMessage());
         }
 
+        // 将JOIN关系补充到ColumnMetadata的referencedTable/referencedColumn中
+        // 仅在该列没有物理外键约束时才补充
+        for (RelationInfo rel : relations) {
+            if ("FK".equals(rel.getJoinType())) {
+                // 物理FK已经在metadata中设置过，跳过
+                continue;
+            }
+            String fromTableName = rel.getFromTable();
+            TableMetadata fromMeta = metadataMap.get(fromTableName);
+            if (fromMeta == null || fromMeta.getColumns() == null) continue;
+
+            for (ColumnMetadata col : fromMeta.getColumns()) {
+                if (col.getColumnName().equalsIgnoreCase(rel.getFromColumn())) {
+                    if (col.getReferencedTable() == null) {
+                        col.setReferencedTable(rel.getToTable().toLowerCase());
+                        col.setReferencedColumn(rel.getToColumn());
+                        log.info("通过JOIN关系补充FK引用: {}.{} → {}.{}",
+                                fromTableName, col.getColumnName(),
+                                rel.getToTable().toLowerCase(), rel.getToColumn());
+                    }
+                    break;
+                }
+            }
+        }
+
+        log.info("最终tables集合: {}", tables);
+        log.info("metadataMap keys: {}", metadataMap.keySet());
+
         result.setTables(new ArrayList<>(tables));
         result.setTableMetadataMap(metadataMap);
         result.setRelations(relations);
 
         List<String> order = DependencyResolver.resolve(new ArrayList<>(tables), relations, warnings);
+        log.info("生成顺序(generationOrder): {}", order);
         result.setGenerationOrder(order);
         result.setWarnings(warnings);
         result.setWhereHints(mergeRangeHints(whereHints));
@@ -121,7 +168,7 @@ public class SqlParserService {
     private void parseInsert(Insert insert, Set<String> tables, List<RelationInfo> relations, List<String> warnings) {
         Table table = insert.getTable();
         if (table != null) {
-            tables.add(table.getName());
+            tables.add(table.getName().toLowerCase());
         }
         Select select = insert.getSelect();
         if (select != null) {
@@ -192,11 +239,12 @@ public class SqlParserService {
                                   List<WhereHint> whereHints) {
         if (fromItem instanceof Table) {
             Table table = (Table) fromItem;
-            tables.add(table.getName());
+            String normalizedName = table.getName().toLowerCase();
+            tables.add(normalizedName);
             if (table.getAlias() != null) {
-                aliasMap.put(table.getAlias().getName(), table.getName());
+                aliasMap.put(table.getAlias().getName(), normalizedName);
             }
-            aliasMap.put(table.getName(), table.getName());
+            aliasMap.put(table.getName(), normalizedName);
         } else if (fromItem instanceof ParenthesedSelect) {
             ParenthesedSelect ps = (ParenthesedSelect) fromItem;
             Select inner = ps.getSelect();
@@ -249,10 +297,10 @@ public class SqlParserService {
 
     private boolean hasDuplicateRelation(List<RelationInfo> relations, RelationInfo rel) {
         return relations.stream().anyMatch(r ->
-                (r.getFromTable().equals(rel.getFromTable()) && r.getFromColumn().equals(rel.getFromColumn()) &&
-                 r.getToTable().equals(rel.getToTable()) && r.getToColumn().equals(rel.getToColumn())) ||
-                (r.getFromTable().equals(rel.getToTable()) && r.getFromColumn().equals(rel.getToColumn()) &&
-                 r.getToTable().equals(rel.getFromTable()) && r.getToColumn().equals(rel.getFromColumn())));
+                (r.getFromTable().equalsIgnoreCase(rel.getFromTable()) && r.getFromColumn().equalsIgnoreCase(rel.getFromColumn()) &&
+                 r.getToTable().equalsIgnoreCase(rel.getToTable()) && r.getToColumn().equalsIgnoreCase(rel.getToColumn())) ||
+                (r.getFromTable().equalsIgnoreCase(rel.getToTable()) && r.getFromColumn().equalsIgnoreCase(rel.getToColumn()) &&
+                 r.getToTable().equalsIgnoreCase(rel.getFromTable()) && r.getToColumn().equalsIgnoreCase(rel.getFromColumn())));
     }
 
     /**
@@ -556,7 +604,7 @@ public class SqlParserService {
             if (keywords.contains(tokens[i].toUpperCase())) {
                 String candidate = tokens[i + 1].replaceAll("[,;()]", "");
                 if (!candidate.isEmpty() && !candidate.startsWith("(") && candidate.matches("[a-zA-Z_][a-zA-Z0-9_]*")) {
-                    tables.add(candidate);
+                    tables.add(candidate.toLowerCase());
                 }
             }
         }

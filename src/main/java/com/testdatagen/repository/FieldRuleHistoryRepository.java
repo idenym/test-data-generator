@@ -23,4 +23,12 @@ public interface FieldRuleHistoryRepository extends JpaRepository<FieldRuleHisto
     // 按脚本ID + 表名 + 列名 + 规则类型 + 规则配置判断唯一性
     Optional<FieldRuleHistory> findBySqlScriptIdAndTableNameAndColumnNameAndRuleTypeAndRuleConfig(
             Long sqlScriptId, String tableName, String columnName, RuleType ruleType, String ruleConfig);
+
+    // 查指定表+列的最近一条历史规则（用于自动回填）
+    Optional<FieldRuleHistory> findFirstByTableNameAndColumnNameOrderByLastUsedAtDesc(
+            String tableName, String columnName);
+
+    // 查指定脚本+表+列的最近一条历史规则（用于自动回填）
+    Optional<FieldRuleHistory> findFirstBySqlScriptIdAndTableNameAndColumnNameOrderByLastUsedAtDesc(
+            Long sqlScriptId, String tableName, String columnName);
 }

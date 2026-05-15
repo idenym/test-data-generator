@@ -43,6 +43,7 @@ const API = {
         if (sqlScriptId) url += `&sqlScriptId=${sqlScriptId}`;
         return this.request('get', url);
     },
+    autoFillRules(data) { return this.request('post', '/rules/auto-fill', data); },
 
     // SQL Script APIs
     listScripts() { return this.request('get', '/scripts'); },

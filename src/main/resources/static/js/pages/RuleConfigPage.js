@@ -8,6 +8,12 @@ const RuleConfigPage = {
             <p class="page-desc">为每个字段设置数据生成规则。支持 AI 生成、正则表达式、范围值、枚举值等多种方式</p>
         </div>
 
+        <!-- 自动回填加载提示 -->
+        <div v-if="autoFilling" class="card" style="text-align: center; padding: var(--space-6);">
+            <div class="loading-spinner" style="margin: 0 auto var(--space-3);"></div>
+            <div style="color: var(--text-secondary);">正在自动回填规则（历史规则 + 知识库）...</div>
+        </div>
+
         <div v-if="!analysisResult" class="card">
             <div class="empty-state">
                 <div class="empty-state-icon">
@@ -26,9 +32,14 @@ const RuleConfigPage = {
                         <svg class="table-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                         {{ tableName }}
                     </div>
-                    <button class="btn btn-ghost btn-sm" @click="suggestRules(tableName)" :disabled="suggesting === tableName">
-                        {{ suggesting === tableName ? '⏳ 分析中...' : '🤖 AI 建议规则' }}
-                    </button>
+                    <div style="display: flex; gap: var(--space-2);">
+                        <button class="btn btn-ghost btn-sm" @click="refreshAutoFill(tableName)" :disabled="autoFilling" title="重新自动回填规则">
+                            🔄 刷新回填
+                        </button>
+                        <button class="btn btn-ghost btn-sm" @click="suggestRules(tableName)" :disabled="suggesting === tableName">
+                            {{ suggesting === tableName ? '⏳ 分析中...' : '🤖 AI 建议规则' }}
+                        </button>
+                    </div>
                 </div>
 
                 <div class="data-table-wrap">
@@ -40,6 +51,7 @@ const RuleConfigPage = {
                                 <th style="width: 100px;">注释</th>
                                 <th style="width: 140px;">规则类型</th>
                                 <th>规则配置</th>
+                                <th style="width: 70px;">来源</th>
                                 <th style="width: 60px;">历史</th>
                             </tr>
                         </thead>
@@ -56,7 +68,7 @@ const RuleConfigPage = {
                                         <span class="tag tag-fk">外键</span>
                                     </template>
                                     <template v-else>
-                                        <select class="inline-select" v-model="rule.ruleType">
+                                        <select class="inline-select" v-model="rule.ruleType" @change="rule.source = 'MANUAL'">
                                             <option value="LLM_DESCRIPTION">🤖 AI 生成</option>
                                             <option value="REGEX">📝 正则</option>
                                             <option value="RANGE">📊 范围</option>
@@ -77,14 +89,17 @@ const RuleConfigPage = {
                                         <input v-if="rule.ruleType === 'REGEX'"
                                             class="inline-input inline-input-mono"
                                             v-model="rule.pattern"
+                                            @input="rule.source = 'MANUAL'"
                                             placeholder="正则表达式，如: 1[3-9][0-9]{9}">
                                         <div v-else-if="rule.ruleType === 'RANGE'" class="range-group">
                                             <input class="inline-input inline-input-mono" v-model="rule.rangeMin"
+                                                @input="rule.source = 'MANUAL'"
                                                 placeholder="最小值" style="width: 80px;">
                                             <span class="range-separator">~</span>
                                             <input class="inline-input inline-input-mono" v-model="rule.rangeMax"
+                                                @input="rule.source = 'MANUAL'"
                                                 placeholder="最大值" style="width: 80px;">
-                                            <select class="inline-select" v-model="rule.rangeType" style="min-width: 80px;">
+                                            <select class="inline-select" v-model="rule.rangeType" @change="rule.source = 'MANUAL'" style="min-width: 80px;">
                                                 <option value="integer">整数</option>
                                                 <option value="decimal">小数</option>
                                                 <option value="date">日期</option>
@@ -94,13 +109,24 @@ const RuleConfigPage = {
                                         <input v-else-if="rule.ruleType === 'ENUM'"
                                             class="inline-input"
                                             v-model="rule.enumValues"
+                                            @input="rule.source = 'MANUAL'"
                                             placeholder="逗号分隔，如: male,female">
                                         <input v-else-if="rule.ruleType === 'LLM_DESCRIPTION'"
                                             class="inline-input"
                                             v-model="rule.llmDesc"
+                                            @input="rule.source = 'MANUAL'"
                                             placeholder="描述，如: 中文姓名、公司名称等">
                                         <span v-else style="color: var(--text-muted); font-size: var(--text-xs);">使用默认规则</span>
                                     </template>
+                                </td>
+                                <td>
+                                    <span v-if="!rule.autoIncrement && !rule.referencedTable"
+                                        class="tag"
+                                        :class="sourceTagClass(rule.source)"
+                                        :title="sourceTagTitle(rule.source)"
+                                        style="font-size: 10px;">
+                                        {{ sourceTagLabel(rule.source) }}
+                                    </span>
                                 </td>
                                 <td>
                                     <button v-if="!rule.autoIncrement && !rule.referencedTable"
@@ -177,6 +203,7 @@ const RuleConfigPage = {
         return {
             tableRules: {},
             suggesting: null,
+            autoFilling: false,
             historyDialogVisible: false,
             historyLoading: false,
             historyList: [],
@@ -184,16 +211,18 @@ const RuleConfigPage = {
             historyTargetRow: null,
         };
     },
+    mounted() {
+        if (this.analysisResult) {
+            this.initRules();
+        }
+    },
     watch: {
-        analysisResult: {
-            handler(val) {
-                if (val) this.initRules();
-            },
-            immediate: true,
+        analysisResult(val) {
+            if (val) this.initRules();
         },
     },
     methods: {
-        initRules() {
+        async initRules() {
             if (!this.analysisResult) return;
             const rules = {};
             for (const [tableName, meta] of Object.entries(this.analysisResult.tableMetadataMap)) {
@@ -211,47 +240,159 @@ const RuleConfigPage = {
                     rangeType: 'integer',
                     enumValues: '',
                     llmDesc: col.comment || '',
+                    source: 'COMMENT',
                 }));
             }
             this.tableRules = rules;
 
-            // 预填 WHERE 子句中提取的约束规则
-            const hints = this.analysisResult.whereHints;
-            if (hints && hints.length > 0) {
-                for (const hint of hints) {
-                    const tableName = hint.tableName;
+            // 自动回填：调用后端获取历史规则 + 知识库规则
+            await this.doAutoFill(rules);
+
+            // 最后应用 WHERE 子句规则（优先级最高）
+            this.applyWhereHints(rules);
+        },
+
+        async doAutoFill(rules) {
+            if (!this.connectionId) return;
+
+            // 构建请求
+            const tables = [];
+            for (const [tableName, tableRules] of Object.entries(rules)) {
+                const columns = tableRules
+                    .filter(r => !r.autoIncrement && !r.referencedTable)
+                    .map(r => ({ columnName: r.columnName, comment: r.comment || '', dataType: r.dataType || '' }));
+                if (columns.length > 0) {
+                    tables.push({ tableName, columns });
+                }
+            }
+
+            if (tables.length === 0) return;
+
+            this.autoFilling = true;
+            try {
+                const result = await API.autoFillRules({
+                    connectionId: this.connectionId,
+                    sqlScriptId: this.sqlScriptId || null,
+                    tables,
+                });
+
+                // 按优先级应用：auto-fill API 已按 知识库(低) -> 历史(高) 排序合并
+                // 直接遍历结果覆盖即可
+                for (const [tableName, suggestions] of Object.entries(result || {})) {
                     const tableRules = rules[tableName];
                     if (!tableRules) continue;
-                    const rule = tableRules.find(r => r.columnName === hint.columnName);
-                    if (!rule || rule.autoIncrement || rule.referencedTable) continue;
-                    if (hint.ruleType === 'ENUM') {
-                        try {
-                            const config = JSON.parse(hint.ruleConfig);
-                            rule.ruleType = 'ENUM';
-                            rule.enumValues = (config.values || []).join(',');
-                        } catch (e) { /* ignore */ }
-                    } else if (hint.ruleType === 'RANGE') {
-                        try {
-                            const config = JSON.parse(hint.ruleConfig);
-                            rule.ruleType = 'RANGE';
-                            rule.rangeMin = config.min != null ? String(config.min) : '';
-                            rule.rangeMax = config.max != null ? String(config.max) : '';
-                            // 根据值格式推断范围类型
-                            const sample = config.min != null ? String(config.min) : String(config.max || '');
-                            if (/^\d{4}-\d{2}-\d{2}T/.test(sample) || /^\d{4}-\d{2}-\d{2} \d{2}:/.test(sample)) {
-                                rule.rangeType = 'datetime';
-                            } else if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) {
-                                rule.rangeType = 'date';
-                            } else if (sample.includes('.')) {
-                                rule.rangeType = 'decimal';
-                            } else {
-                                rule.rangeType = 'integer';
-                            }
-                        } catch (e) { /* ignore */ }
+
+                    for (const sug of suggestions) {
+                        const rule = tableRules.find(r => r.columnName === sug.columnName);
+                        if (!rule || rule.autoIncrement || rule.referencedTable) continue;
+
+                        this.applyRuleConfig(rule, sug.ruleType, sug.ruleConfig, sug.source);
                     }
+                }
+            } catch (e) {
+                console.warn('自动回填规则失败:', e.message);
+            }
+            this.autoFilling = false;
+        },
+
+        applyWhereHints(rules) {
+            const hints = this.analysisResult.whereHints;
+            if (!hints || hints.length === 0) return;
+
+            for (const hint of hints) {
+                const tableName = hint.tableName;
+                const tableRules = rules[tableName];
+                if (!tableRules) continue;
+                const rule = tableRules.find(r => r.columnName === hint.columnName);
+                if (!rule || rule.autoIncrement || rule.referencedTable) continue;
+                if (hint.ruleType === 'ENUM') {
+                    try {
+                        const config = JSON.parse(hint.ruleConfig);
+                        rule.ruleType = 'ENUM';
+                        rule.enumValues = (config.values || []).join(',');
+                        rule.source = 'WHERE';
+                    } catch (e) { /* ignore */ }
+                } else if (hint.ruleType === 'RANGE') {
+                    try {
+                        const config = JSON.parse(hint.ruleConfig);
+                        rule.ruleType = 'RANGE';
+                        rule.rangeMin = config.min != null ? String(config.min) : '';
+                        rule.rangeMax = config.max != null ? String(config.max) : '';
+                        const sample = config.min != null ? String(config.min) : String(config.max || '');
+                        if (/^\d{4}-\d{2}-\d{2}T/.test(sample) || /^\d{4}-\d{2}-\d{2} \d{2}:/.test(sample)) {
+                            rule.rangeType = 'datetime';
+                        } else if (/^\d{4}-\d{2}-\d{2}$/.test(sample)) {
+                            rule.rangeType = 'date';
+                        } else if (sample.includes('.')) {
+                            rule.rangeType = 'decimal';
+                        } else {
+                            rule.rangeType = 'integer';
+                        }
+                        rule.source = 'WHERE';
+                    } catch (e) { /* ignore */ }
                 }
             }
         },
+
+        applyRuleConfig(rule, ruleType, ruleConfig, source) {
+            rule.ruleType = ruleType || 'LLM_DESCRIPTION';
+            rule.source = source || 'COMMENT';
+
+            if (!ruleConfig) return;
+
+            try {
+                const config = typeof ruleConfig === 'string' ? JSON.parse(ruleConfig) : ruleConfig;
+                switch (rule.ruleType) {
+                    case 'REGEX':
+                        rule.pattern = config.pattern || '';
+                        break;
+                    case 'RANGE':
+                        rule.rangeMin = config.min != null ? String(config.min) : '';
+                        rule.rangeMax = config.max != null ? String(config.max) : '';
+                        rule.rangeType = config.type || 'integer';
+                        break;
+                    case 'ENUM':
+                        rule.enumValues = (config.values || []).join(',');
+                        break;
+                    case 'LLM_DESCRIPTION':
+                        rule.llmDesc = config.description || '';
+                        break;
+                }
+            } catch (e) {
+                console.warn('解析规则配置失败:', e);
+            }
+        },
+
+        async refreshAutoFill(tableName) {
+            if (!this.connectionId) return;
+
+            const tableRules = this.tableRules[tableName];
+            if (!tableRules) return;
+
+            // 重置为 comment 默认值
+            for (const rule of tableRules) {
+                if (rule.autoIncrement || rule.referencedTable) continue;
+                rule.ruleType = 'LLM_DESCRIPTION';
+                rule.pattern = '';
+                rule.rangeMin = '';
+                rule.rangeMax = '';
+                rule.rangeType = 'integer';
+                rule.enumValues = '';
+                rule.llmDesc = rule.comment || '';
+                rule.source = 'COMMENT';
+            }
+
+            // 重新调用自动回填（仅该表）
+            const singleTableRules = {};
+            singleTableRules[tableName] = tableRules;
+            await this.doAutoFill(singleTableRules);
+
+            // 重新应用 WHERE 提示
+            this.applyWhereHints(singleTableRules);
+
+            Toast.success('已刷新 ' + tableName + ' 的规则');
+        },
+
         getTableRules(tableName) {
             return this.tableRules[tableName] || [];
         },
@@ -266,6 +407,7 @@ const RuleConfigPage = {
                         const rule = rules.find(r => r.columnName === sug.columnName);
                         if (rule && !rule.autoIncrement && !rule.referencedTable) {
                             rule.ruleType = sug.ruleType || '';
+                            rule.source = 'AI';
                             if (sug.ruleConfig) {
                                 if (sug.ruleType === 'REGEX') rule.pattern = sug.ruleConfig.pattern || '';
                                 if (sug.ruleType === 'RANGE') {
@@ -337,6 +479,7 @@ const RuleConfigPage = {
             const row = this.historyTargetRow;
             if (!row) return;
             row.ruleType = historyRow.ruleType;
+            row.source = 'HISTORY';
             try {
                 const config = JSON.parse(historyRow.ruleConfig || '{}');
                 switch (historyRow.ruleType) {
@@ -352,6 +495,32 @@ const RuleConfigPage = {
             } catch (e) { console.warn('解析历史规则配置失败:', e); }
             this.historyDialogVisible = false;
             Toast.success('已应用历史规则');
+        },
+        sourceTagLabel(source) {
+            const map = { WHERE: 'WHERE', HISTORY: '历史', KNOWLEDGE_BASE: '知识库', COMMENT: '注释', AI: 'AI', MANUAL: '手动' };
+            return map[source] || '默认';
+        },
+        sourceTagClass(source) {
+            const map = {
+                WHERE: 'tag-warning',
+                HISTORY: 'tag-primary',
+                KNOWLEDGE_BASE: 'tag-ai',
+                AI: 'tag-ai',
+                COMMENT: 'tag-ghost',
+                MANUAL: 'tag-ghost',
+            };
+            return map[source] || 'tag-ghost';
+        },
+        sourceTagTitle(source) {
+            const map = {
+                WHERE: '来自 SQL WHERE 子句解析（优先级 1）',
+                HISTORY: '来自最近使用的历史规则（优先级 2）',
+                KNOWLEDGE_BASE: '来自知识库匹配（优先级 3）',
+                COMMENT: '来自字段注释（默认）',
+                AI: '来自 AI 建议',
+                MANUAL: '手动修改',
+            };
+            return map[source] || '';
         },
         formatHistoryConfig(row) {
             try {

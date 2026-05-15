@@ -62,7 +62,7 @@ public class OpenAiConfig {
     }
 
     public static class OpenAiProperties {
-        private String apiKey = "tp-c5qpksrxxpk6s513f4e9j70abxgdr8k8hm6j7cncwndmm4qj";
+        private String apiKey = "tp-cisncg8bwcp4be3o8gt7jp3qkbcellf96yu914r0bngqpkhm";
         private String baseUrl = "https://token-plan-cn.xiaomimimo.com/";
         private String model = "mimo-v2.5-pro";
         private int maxTokens = 10000;

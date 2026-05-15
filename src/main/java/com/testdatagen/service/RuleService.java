@@ -13,8 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class RuleService {
@@ -151,5 +150,42 @@ public class RuleService {
                     sqlScriptId, tableName, columnName);
         }
         return getFieldRuleHistory(tableName, columnName);
+    }
+
+    /**
+     * 批量获取每个表各字段的最近一次使用的历史规则（用于自动回填）。
+     * 返回 Map<tableName, Map<columnName, FieldRuleHistory>>
+     */
+    public Map<String, Map<String, FieldRuleHistory>> getLatestHistoryRules(
+            Long sqlScriptId, Map<String, List<String>> tableColumns) {
+        Map<String, Map<String, FieldRuleHistory>> result = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<String>> entry : tableColumns.entrySet()) {
+            String tableName = entry.getKey();
+            Map<String, FieldRuleHistory> columnRules = new LinkedHashMap<>();
+
+            for (String columnName : entry.getValue()) {
+                try {
+                    Optional<FieldRuleHistory> latest;
+                    if (sqlScriptId != null) {
+                        latest = fieldRuleHistoryRepository
+                                .findFirstBySqlScriptIdAndTableNameAndColumnNameOrderByLastUsedAtDesc(
+                                        sqlScriptId, tableName, columnName);
+                    } else {
+                        latest = fieldRuleHistoryRepository
+                                .findFirstByTableNameAndColumnNameOrderByLastUsedAtDesc(
+                                        tableName, columnName);
+                    }
+                    latest.ifPresent(h -> columnRules.put(columnName, h));
+                } catch (Exception e) {
+                    log.warn("查询历史规则失败: {}.{} - {}", tableName, columnName, e.getMessage());
+                }
+            }
+
+            if (!columnRules.isEmpty()) {
+                result.put(tableName, columnRules);
+            }
+        }
+        return result;
     }
 }

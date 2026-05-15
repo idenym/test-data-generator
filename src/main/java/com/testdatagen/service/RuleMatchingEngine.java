@@ -9,6 +9,8 @@ import com.testdatagen.model.dto.DataGenRequest.FieldRuleRequest;
 import com.testdatagen.model.entity.FieldRule;
 import com.testdatagen.model.enums.RuleType;
 import com.testdatagen.repository.FieldRuleRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -16,6 +18,8 @@ import java.util.regex.Pattern;
 
 @Service
 public class RuleMatchingEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(RuleMatchingEngine.class);
 
     private final FieldRuleRepository fieldRuleRepository;
 
@@ -40,19 +44,21 @@ public class RuleMatchingEngine {
 
             FieldGenerator generator = null;
 
-            // 1. Check user-provided rules (highest priority)
-            if (userRules != null) {
+            // 1. FK外键关系（最高优先级）：只要列有外键关系，直接使用ForeignKeyGenerator
+            if (col.getReferencedTable() != null) {
+                generator = new ForeignKeyGenerator(Collections.emptyList());
+                log.info("字段 {}.{} 检测到外键关系 -> {}.{}，使用ForeignKeyGenerator（最高优先级）",
+                        tableName, col.getColumnName(), col.getReferencedTable(), col.getReferencedColumn());
+            }
+
+            // 2. Check user-provided rules
+            if (generator == null && userRules != null) {
                 generator = matchUserRule(tableName, col, userRules);
             }
 
-            // 2. Check stored rules
+            // 3. Check stored rules
             if (generator == null) {
                 generator = matchStoredRule(tableName, col, storedRules);
-            }
-
-            // 3. Check FK reference
-            if (generator == null && col.getReferencedTable() != null) {
-                generator = new ForeignKeyGenerator(Collections.emptyList());
             }
 
             // 4. Built-in heuristic rules

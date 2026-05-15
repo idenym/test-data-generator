@@ -21,9 +21,9 @@ spring:
 
 app:
   openai:
-    api-key: ${OPENAI_API_KEY:tp-c5qpksrxxpk6s513f4e9j70abxgdr8k8hm6j7cncwndmm4qj}
-    base-url: ${OPENAI_BASE_URL:https://token-plan-cn.xiaomimimo.com/}
-    model: ${OPENAI_MODEL:mimo-v2.5-pro}
+    api-key: ${OPENAI_API_KEY:tp-cisncg8bwcp4be3o8gt7jp3qkbcellf96yu914r0bngqpkhm}
+    base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}
+    model: ${OPENAI_MODEL:deepseek-v4-pro}
     max-tokens: 10000
     temperature: 0.8
     timeout-seconds: 60
@@ -39,12 +39,17 @@ app:
       #   enable-thinking: (可选) 覆盖全局默认值
       "[mimo-v2.5-pro]":
         base-url: https://token-plan-cn.xiaomimimo.com/
-        api-key: tp-c5qpksrxxpk6s513f4e9j70abxgdr8k8hm6j7cncwndmm4qj
+        api-key: tp-cisncg8bwcp4be3o8gt7jp3qkbcellf96yu914r0bngqpkhm
         name: Mimo V2.5 Pro
       "[deepseek-v4-pro]":
         base-url: https://api.deepseek.com
         api-key: sk-fc9ab4f2edbd465190f87e9e4ecafefb
         name: DeepSeek V4 Pro
+  knowledge-base:
+    enabled: ${KB_ENABLED:false}
+    base-url: ${KB_BASE_URL:http://localhost:9090}
+    api-key: ${KB_API_KEY:}
+    timeout-seconds: ${KB_TIMEOUT:30}
   encryption:
     secret-key: ${ENCRYPTION_KEY:default-dev-key-change-me-in-production}
   generation:

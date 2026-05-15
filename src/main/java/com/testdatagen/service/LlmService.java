@@ -107,6 +107,7 @@ public class LlmService {
         sb.append("\nFor each non-auto-increment column, suggest the best approach to generate realistic test data.\n");
         sb.append("Return JSON array: [{\"columnName\":\"...\",\"ruleType\":\"REGEX|RANGE|ENUM|LLM_DESCRIPTION\",\"ruleConfig\":{...},\"description\":\"...\"}]\n");
         sb.append("ruleType options: REGEX (with pattern), RANGE (with min/max/type), ENUM (with values/weights), LLM_DESCRIPTION (with description)\n");
+        sb.append("\n请用中文回答，description字段请使用中文描述。\n");
         return sb.toString();
     }
 
@@ -148,6 +149,8 @@ public class LlmService {
         messages.add(userMsg);
 
         body.put("messages", messages);
+
+        log.info("LLM请求 - 模型: {}, URL: {}, 完整messages内容: {}", actualModel, url, messages.toJSONString());
 
         int maxRetries = 3;
         for (int attempt = 0; attempt < maxRetries; attempt++) {

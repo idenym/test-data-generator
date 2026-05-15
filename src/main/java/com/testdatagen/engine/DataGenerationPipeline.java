@@ -33,6 +33,14 @@ public class DataGenerationPipeline {
     private final int insertBatchSize;
     private final ExecutorService llmExecutor;
 
+    /**
+     * 生成 generatedPkMap 的 key，格式为 "tableName.columnName" (全小写)，
+     * 确保大小写不敏感匹配，并支持复合主键场景（不同列各自独立存储）。
+     */
+    private static String pkMapKey(String tableName, String columnName) {
+        return tableName.toLowerCase() + "." + columnName.toLowerCase();
+    }
+
     public DataGenerationPipeline(ConnectionService connectionService,
                                    RuleMatchingEngine ruleMatchingEngine,
                                    LlmService llmService,
@@ -251,14 +259,27 @@ public class DataGenerationPipeline {
         for (ColumnMetadata col : tableMeta.getColumns()) {
             if (col.getReferencedTable() != null && generators.get(col.getColumnName()) instanceof ForeignKeyGenerator) {
                 ForeignKeyGenerator fkGen = (ForeignKeyGenerator) generators.get(col.getColumnName());
-                List<Object> parentKeys = generatedPkMap.get(col.getReferencedTable());
+                // 使用规范化 key 查找父表PK值（大小写不敏感 + 精确到列）
+                String key = pkMapKey(col.getReferencedTable(), col.getReferencedColumn());
+                List<Object> parentKeys = generatedPkMap.get(key);
                 if (parentKeys != null && !parentKeys.isEmpty()) {
+                    log.info("表 {}.{} FK注入: 从本次生成的父表 {}.{} 获取到 {} 个parentKeys",
+                            tableMeta.getTableName(), col.getColumnName(),
+                            col.getReferencedTable(), col.getReferencedColumn(), parentKeys.size());
                     fkGen.setParentKeys(parentKeys);
                 } else {
-                    // Fetch existing PKs from the target DB
+                    // 本次未生成父表数据，回退到数据库查询已有PK
+                    log.info("表 {}.{} FK回退: generatedPkMap中未找到key={}, 将从数据库查询已有数据",
+                            tableMeta.getTableName(), col.getColumnName(), key);
                     List<Object> existingKeys = fetchExistingKeys(connectionId, col.getReferencedTable(), col.getReferencedColumn());
                     if (!existingKeys.isEmpty()) {
+                        log.info("表 {}.{} FK回退: 从数据库获取到 {} 个已有key",
+                                tableMeta.getTableName(), col.getColumnName(), existingKeys.size());
                         fkGen.setParentKeys(existingKeys);
+                    } else {
+                        log.warn("表 {}.{} FK警告: 父表 {}.{} 既无本次生成数据也无已有数据，FK值将为null",
+                                tableMeta.getTableName(), col.getColumnName(),
+                                col.getReferencedTable(), col.getReferencedColumn());
                     }
                 }
             }
@@ -405,7 +426,11 @@ public class DataGenerationPipeline {
                     if (val != null) pks.add(val);
                 }
                 if (!pks.isEmpty()) {
-                    generatedPkMap.put(tableMeta.getTableName(), pks);
+                    // 使用 "tableName.columnName" 规范化key，支持复合主键 + 大小写不敏感
+                    String key = pkMapKey(tableMeta.getTableName(), col.getColumnName());
+                    generatedPkMap.put(key, pks);
+                    log.info("追踪PK: 表 {} 列 {} 生成了 {} 个非自增主键值, key={}",
+                            tableMeta.getTableName(), col.getColumnName(), pks.size(), key);
                 }
             }
         }
@@ -419,21 +444,31 @@ public class DataGenerationPipeline {
     private List<List<String>> buildDependencyLevels(SqlAnalysisResult analysisResult) {
         List<String> generationOrder = analysisResult.getGenerationOrder();
         Map<String, TableMetadata> metaMap = analysisResult.getTableMetadataMap();
-        Set<String> tableSet = new HashSet<>(generationOrder);
 
-        // 构建每个表的依赖集合（仅在当前生成范围内的依赖）
+        // 构建大小写不敏感的表名映射: lowercaseName -> originalName
+        Map<String, String> normalizedToOriginal = new HashMap<>();
+        for (String tableName : generationOrder) {
+            normalizedToOriginal.put(tableName.toLowerCase(), tableName);
+        }
+        Set<String> normalizedTableSet = normalizedToOriginal.keySet();
+
+        // 构建每个表的依赖集合（仅在当前生成范围内的依赖），使用规范化名称比较
         Map<String, Set<String>> dependencies = new HashMap<>();
         for (String tableName : generationOrder) {
             Set<String> deps = new HashSet<>();
             TableMetadata meta = metaMap.get(tableName);
             if (meta != null) {
                 for (ColumnMetadata col : meta.getColumns()) {
-                    if (col.getReferencedTable() != null && tableSet.contains(col.getReferencedTable())) {
-                        deps.add(col.getReferencedTable());
+                    if (col.getReferencedTable() != null) {
+                        String refNormalized = col.getReferencedTable().toLowerCase();
+                        if (normalizedTableSet.contains(refNormalized)
+                                && !refNormalized.equals(tableName.toLowerCase())) {
+                            // 存储原始表名作为依赖（从normalizedToOriginal映射回来）
+                            deps.add(normalizedToOriginal.get(refNormalized));
+                        }
                     }
                 }
             }
-            deps.remove(tableName); // 排除自引用
             dependencies.put(tableName, deps);
         }
 
@@ -454,6 +489,7 @@ public class DataGenerationPipeline {
 
             if (currentLevel.isEmpty()) {
                 // 防止死循环（循环依赖情况），将剩余表全部放入一个层级
+                log.warn("检测到循环依赖，将剩余表放入同一层级");
                 for (String tableName : generationOrder) {
                     if (!processed.contains(tableName)) {
                         currentLevel.add(tableName);
@@ -465,7 +501,10 @@ public class DataGenerationPipeline {
             processed.addAll(currentLevel);
         }
 
-        log.info("表依赖分层结果: {} 层, 详情: {}", levels.size(), levels);
+        log.info("表依赖分层结果: 共 {} 层", levels.size());
+        for (int i = 0; i < levels.size(); i++) {
+            log.info("  第 {} 层: {}", i, levels.get(i));
+        }
         return levels;
     }
 
