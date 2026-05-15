@@ -1,5 +1,5 @@
 const RuleConfigPage = {
-    props: ['connectionId', 'analysisResult', 'sqlScriptId'],
+    props: ['connectionId', 'analysisResult', 'sqlScriptId', 'savedRules'],
     emits: ['update-rules', 'prev', 'next'],
     template: `
     <div>
@@ -65,7 +65,7 @@ const RuleConfigPage = {
                                         <span class="tag tag-ai">自增</span>
                                     </template>
                                     <template v-else-if="rule.referencedTable">
-                                        <span class="tag tag-fk">外键</span>
+                                        <span class="tag tag-fk">关联关系</span>
                                     </template>
                                     <template v-else>
                                         <select class="inline-select" v-model="rule.ruleType" @change="rule.source = 'MANUAL'">
@@ -191,7 +191,7 @@ const RuleConfigPage = {
 
             <!-- Step Navigation -->
             <div class="step-navigation">
-                <button class="btn btn-ghost" @click="$emit('prev')">← 上一步</button>
+                <button class="btn btn-ghost" @click="goPrev">← 上一步</button>
                 <button class="btn btn-primary btn-lg" @click="goNext">
                     下一步：数据生成 →
                 </button>
@@ -245,11 +245,48 @@ const RuleConfigPage = {
             }
             this.tableRules = rules;
 
-            // 自动回填：调用后端获取历史规则 + 知识库规则
-            await this.doAutoFill(rules);
+            // 如果有已保存的规则（从上一次配置传回），直接恢复
+            if (this.savedRules && this.savedRules.length > 0) {
+                this.restoreFromSavedRules(rules);
+                return;
+            }
 
-            // 最后应用 WHERE 子句规则（优先级最高）
+            // 否则走自动填充流程
+            await this.doAutoFill(rules);
             this.applyWhereHints(rules);
+        },
+
+        restoreFromSavedRules(rules) {
+            for (const saved of this.savedRules) {
+                const tableRules = rules[saved.tableName];
+                if (!tableRules) continue;
+                const rule = tableRules.find(r => r.columnName === saved.columnName);
+                if (!rule) continue;
+
+                rule.ruleType = saved.ruleType;
+                rule.source = 'MANUAL';
+                try {
+                    const config = JSON.parse(saved.ruleConfig || '{}');
+                    switch (saved.ruleType) {
+                        case 'REGEX':
+                            rule.pattern = config.pattern || '';
+                            break;
+                        case 'RANGE':
+                            rule.rangeMin = String(config.min || '');
+                            rule.rangeMax = String(config.max || '');
+                            rule.rangeType = config.type || 'integer';
+                            break;
+                        case 'ENUM':
+                            rule.enumValues = (config.values || []).join(',');
+                            break;
+                        case 'LLM_DESCRIPTION':
+                            rule.llmDesc = config.description || '';
+                            break;
+                    }
+                } catch (e) {
+                    console.warn('恢复规则配置失败:', e);
+                }
+            }
         },
 
         async doAutoFill(rules) {
@@ -457,6 +494,10 @@ const RuleConfigPage = {
                 }
             }
             return fieldRules;
+        },
+        goPrev() {
+            this.$emit('update-rules', this.buildFieldRules());
+            this.$emit('prev');
         },
         goNext() {
             this.$emit('update-rules', this.buildFieldRules());

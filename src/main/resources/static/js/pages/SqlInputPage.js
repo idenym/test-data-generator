@@ -87,7 +87,11 @@ INSERT INTO users (name, age, phone, email) VALUES (...)"></textarea>
                             <button class="btn btn-outline" @click="showSaveDialog = true" :disabled="!sql.trim()">
                                 另存为...
                             </button>
+                            <button class="btn btn-ghost" @click="$refs.fileInput.click()">
+                                上传 SQL 文件
+                            </button>
                             <button class="btn btn-ghost" @click="clearSql">清空</button>
+                            <input type="file" ref="fileInput" accept=".sql,.txt" style="display:none" @change="handleFileUpload">
                         </div>
                     </div>
 
@@ -102,10 +106,10 @@ INSERT INTO users (name, age, phone, email) VALUES (...)"></textarea>
                             <div class="relation-flow">
                                 <div v-for="rel in result.relations" :key="rel.fromTable + rel.fromColumn" class="relation-item">
                                     <span class="relation-table-name">{{ rel.fromTable }}</span>
-                                    <span class="relation-col-name">.{{ rel.fromColumn }}</span>
+                                    <span class="relation-col-name">{{ rel.fromColumn }}</span>
                                     <span class="relation-arrow-icon">-></span>
                                     <span class="relation-table-name">{{ rel.toTable }}</span>
-                                    <span class="relation-col-name">.{{ rel.toColumn }}</span>
+                                    <span class="relation-col-name">{{ rel.toColumn }}</span>
                                     <span class="relation-join-type">{{ rel.joinType || 'FK' }}</span>
                                 </div>
                             </div>
@@ -353,6 +357,40 @@ INSERT INTO users (name, age, phone, email) VALUES (...)"></textarea>
             }
             this.$emit('analysis-done', this.result, this.sql);
             this.$emit('next');
+        },
+        handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                this.sql = content;
+                this.result = null;
+
+                // 从文件名获取脚本名（去掉扩展名）
+                const scriptName = file.name.replace(/\.(sql|txt)$/i, '');
+
+                // 自动保存到脚本库
+                try {
+                    const script = await API.createScript({
+                        name: scriptName,
+                        sqlContent: content,
+                        connectionId: this.connectionId || null
+                    });
+                    this.currentScriptId = script.id;
+                    this.currentScriptName = scriptName;
+                    this.$emit('script-selected', script.id);
+                    await this.loadScripts();
+                    Toast.success('文件 "' + file.name + '" 已导入并保存到脚本库');
+                } catch (err) {
+                    Toast.error('保存脚本失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+
+            // 重置 input，允许重复上传相同文件
+            event.target.value = '';
         },
     },
 };

@@ -133,7 +133,7 @@ public class DataGenerationPipeline {
         List<Map<String, Object>> rows = generateRows(tableMeta, generators, previewRows);
         tableData.put(tableName, rows);
 
-        trackGeneratedPks(tableMeta, rows, generatedPkMap);
+        trackGeneratedPks(tableMeta, rows, generatedPkMap, analysisResult);
     }
 
     /**
@@ -234,8 +234,8 @@ public class DataGenerationPipeline {
             }
         }
 
-        // Track PKs (非自增主键直接从生成数据中获取)
-        trackGeneratedPks(tableMeta, rows, generatedPkMap);
+        // Track PKs (追踪被FK引用的列值)
+        trackGeneratedPks(tableMeta, rows, generatedPkMap, analysisResult);
 
         allTableDataMap.put(tableName, new TableWriteData(tableName, columns, rows, tableMeta));
     }
@@ -417,20 +417,64 @@ public class DataGenerationPipeline {
     }
 
     private void trackGeneratedPks(TableMetadata tableMeta, List<Map<String, Object>> rows,
-                                    Map<String, List<Object>> generatedPkMap) {
+                                    Map<String, List<Object>> generatedPkMap,
+                                    SqlAnalysisResult analysisResult) {
+        String currentTable = tableMeta.getTableName().toLowerCase();
+
+        // 收集当前表中需要被追踪的列：PK列 + 被其他表FK引用的列
+        Set<String> columnsToTrack = new HashSet<>();
         for (ColumnMetadata col : tableMeta.getColumns()) {
-            if (col.isPrimaryKey() && !col.isAutoIncrement()) {
+            if (col.isPrimaryKey()) {
+                columnsToTrack.add(col.getColumnName().toLowerCase());
+            }
+        }
+        // 从所有表的FK关系中找到引用当前表的列
+        Map<String, TableMetadata> metaMap = analysisResult.getTableMetadataMap();
+        if (metaMap != null) {
+            for (TableMetadata otherMeta : metaMap.values()) {
+                if (otherMeta.getColumns() == null) continue;
+                for (ColumnMetadata otherCol : otherMeta.getColumns()) {
+                    if (otherCol.getReferencedTable() != null
+                            && otherCol.getReferencedTable().equalsIgnoreCase(currentTable)
+                            && otherCol.getReferencedColumn() != null) {
+                        columnsToTrack.add(otherCol.getReferencedColumn().toLowerCase());
+                    }
+                }
+            }
+        }
+
+        if (columnsToTrack.isEmpty()) return;
+
+        for (ColumnMetadata col : tableMeta.getColumns()) {
+            if (!columnsToTrack.contains(col.getColumnName().toLowerCase())) continue;
+
+            String key = pkMapKey(tableMeta.getTableName(), col.getColumnName());
+
+            if (col.isAutoIncrement()) {
+                // 自增列：生成递增序列值用于子表FK引用
+                List<Object> pks = new ArrayList<>();
+                for (int i = 0; i < rows.size(); i++) {
+                    long seqVal = i + 1L;
+                    pks.add(seqVal);
+                    rows.get(i).put(col.getColumnName(), seqVal);
+                }
+                generatedPkMap.put(key, pks);
+                log.info("追踪FK引用列: 表 {} 列 {} 生成 {} 个自增序列值, key={}",
+                        tableMeta.getTableName(), col.getColumnName(), pks.size(), key);
+            } else {
+                // 非自增列：从已生成的行数据中提取
                 List<Object> pks = new ArrayList<>();
                 for (Map<String, Object> row : rows) {
                     Object val = row.get(col.getColumnName());
                     if (val != null) pks.add(val);
                 }
                 if (!pks.isEmpty()) {
-                    // 使用 "tableName.columnName" 规范化key，支持复合主键 + 大小写不敏感
-                    String key = pkMapKey(tableMeta.getTableName(), col.getColumnName());
                     generatedPkMap.put(key, pks);
-                    log.info("追踪PK: 表 {} 列 {} 生成了 {} 个非自增主键值, key={}",
+                    log.info("追踪FK引用列: 表 {} 列 {} 提取 {} 个已生成值, key={}",
                             tableMeta.getTableName(), col.getColumnName(), pks.size(), key);
+                } else {
+                    log.warn("追踪FK引用列: 表 {} 列 {} 生成值为空, 子表FK将回退到数据库查询",
+                            tableMeta.getTableName(), col.getColumnName());
                 }
             }
         }

@@ -65,7 +65,7 @@ public class LlmService {
 
     private String buildGenerationPrompt(String tableName, ColumnMetadata column, String description, int batchSize) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Generate ").append(batchSize).append("realistic test data values for a database column.\n\n");
+        sb.append("Generate ").append(batchSize).append(" realistic test data values for a database column.\n\n");
         sb.append("Table: ").append(tableName).append("\n");
         sb.append("Column: ").append(column.getColumnName()).append("\n");
         sb.append("Data type: ").append(column.getColumnType()).append("\n");
@@ -81,6 +81,7 @@ public class LlmService {
         sb.append("- 生成的数值需要 realistic 和 diverse，生成数据可以不唯一，尽量满足多元\n");
         sb.append("- 数据生成的规则，需要严格满足Data type所代表的数据类型和对应数据类型的最大限制以及Nullable代表的是否可空的限制，然后根据Description来构造数据，如果Description可以根据Table和Column的语义构造\n");
         sb.append("- 只返回生成数据，以一个json数组格式，不要返回思考过程等其他内容\n");
+        sb.append("- 注意区分bigint和bigint unsigned的数值边界");
         sb.append("- 返回示例: [\"value1\", \"value2\", ...]\n");
         return sb.toString();
     }

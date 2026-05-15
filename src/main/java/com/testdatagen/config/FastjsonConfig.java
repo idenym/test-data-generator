@@ -1,6 +1,7 @@
 package com.testdatagen.config;
 
 import com.alibaba.fastjson.serializer.SerializerFeature;
+import com.alibaba.fastjson.serializer.ValueFilter;
 import com.alibaba.fastjson.support.config.FastJsonConfig;
 import com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,18 @@ public class FastjsonConfig implements WebMvcConfigurer {
                 SerializerFeature.DisableCircularReferenceDetect
         );
         config.setCharset(StandardCharsets.UTF_8);
+
+        // 超出 JavaScript Number.MAX_SAFE_INTEGER 的 Long 值序列化为字符串，避免前端精度丢失
+        ValueFilter bigIntFilter = (object, name, value) -> {
+            if (value instanceof Long) {
+                long v = (Long) value;
+                if (v > 9007199254740991L || v < -9007199254740991L) {
+                    return String.valueOf(v);
+                }
+            }
+            return value;
+        };
+        config.setSerializeFilters(bigIntFilter);
 
         List<MediaType> mediaTypes = new ArrayList<>();
         mediaTypes.add(MediaType.APPLICATION_JSON);

@@ -148,6 +148,15 @@ public class DataWriterService {
             if (str.isEmpty()) {
                 ps.setNull(index, Types.NULL);
             } else {
+                // 尝试将纯数字字符串转为 Long（处理前端回传的大整数字符串）
+                if (str.matches("-?\\d+") && str.length() >= 16) {
+                    try {
+                        ps.setLong(index, Long.parseLong(str));
+                        return;
+                    } catch (NumberFormatException ignored) {
+                        // 超出 Long 范围，按字符串处理
+                    }
+                }
                 ps.setString(index, str);
             }
         } else if (value instanceof Integer) {
