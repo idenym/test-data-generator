@@ -251,9 +251,9 @@ const RuleConfigPage = {
                 return;
             }
 
-            // 否则走自动填充流程
-            await this.doAutoFill(rules);
-            this.applyWhereHints(rules);
+            // 否则走自动填充流程（使用 this.tableRules 保证通过响应式代理修改）
+            await this.doAutoFill(this.tableRules);
+            this.applyWhereHints(this.tableRules);
         },
 
         restoreFromSavedRules(rules) {

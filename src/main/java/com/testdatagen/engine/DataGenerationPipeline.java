@@ -6,6 +6,7 @@ import com.testdatagen.engine.impl.LlmBatchGenerator;
 import com.testdatagen.model.dto.ColumnMetadata;
 import com.testdatagen.model.dto.DataGenRequest;
 import com.testdatagen.model.dto.DataPreviewResponse;
+import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.dto.TableMetadata;
 import com.testdatagen.service.*;
@@ -206,6 +207,157 @@ public class DataGenerationPipeline {
         }
 
         return result;
+    }
+
+    /**
+     * 仅重新生成指定列的数据，保持其他列数据不变。
+     * 支持单列或多列批量重新生成。
+     */
+    public RegenerateColumnsResponse regenerateColumns(String tableName, List<String> columns, int rowCount,
+                                                        List<DataGenRequest.FieldRuleRequest> fieldRules,
+                                                        List<String> models,
+                                                        SqlAnalysisResult analysisResult,
+                                                        Map<String, List<Map<String, Object>>> existingData) {
+        RegenerateColumnsResponse response = new RegenerateColumnsResponse(tableName);
+
+        TableMetadata tableMeta = analysisResult.getTableMetadataMap().get(tableName);
+        if (tableMeta == null) {
+            response.addWarning("未找到表 " + tableName + " 的元数据");
+            return response;
+        }
+
+        // 过滤自增列
+        Set<String> targetColumns = new LinkedHashSet<>();
+        for (String col : columns) {
+            ColumnMetadata colMeta = findColumnMeta(tableMeta, col);
+            if (colMeta == null) {
+                response.addWarning("未找到列 " + tableName + "." + col);
+                continue;
+            }
+            if (colMeta.isAutoIncrement()) {
+                response.addWarning("列 " + col + " 为自增列，跳过重新生成");
+                continue;
+            }
+            targetColumns.add(col);
+        }
+
+        if (targetColumns.isEmpty()) {
+            return response;
+        }
+
+        // 为目标列匹配生成器
+        Map<String, FieldGenerator> generators = ruleMatchingEngine.matchRules(
+                tableName, tableMeta.getColumns(), fieldRules, null);
+
+        // 为FK列设置parentKeys（从existingData中提取）
+        setupForeignKeyGeneratorsFromExistingData(tableMeta, generators, existingData, targetColumns);
+
+        // 为LLM列预填充数据（仅目标列中的LLM列）
+        preFillLlmGeneratorsForColumns(tableName, tableMeta, generators, rowCount, models, targetColumns);
+
+        // 获取当前表的已有数据（用于context）
+        List<Map<String, Object>> existingRows = existingData != null ? existingData.get(tableName) : null;
+
+        // 逐行生成目标列数据
+        for (String col : targetColumns) {
+            FieldGenerator gen = generators.get(col);
+            if (gen == null) {
+                response.addWarning("列 " + col + " 无法创建生成器，跳过");
+                continue;
+            }
+
+            List<Object> values = new ArrayList<>();
+            for (int i = 0; i < rowCount; i++) {
+                Map<String, Object> context = new HashMap<>();
+                context.put("rowIndex", i);
+                // 将当前行已有数据放入context，供生成器参考
+                if (existingRows != null && i < existingRows.size()) {
+                    context.put("currentRow", existingRows.get(i));
+                } else {
+                    context.put("currentRow", new HashMap<>());
+                }
+                values.add(gen.generate(context));
+            }
+            response.putColumnValues(col, values);
+        }
+
+        log.info("表 {} 重新生成 {} 列数据完成，每列 {} 行", tableName, targetColumns.size(), rowCount);
+        return response;
+    }
+
+    /**
+     * 从existingData中为FK列设置parentKeys
+     */
+    private void setupForeignKeyGeneratorsFromExistingData(TableMetadata tableMeta,
+                                                            Map<String, FieldGenerator> generators,
+                                                            Map<String, List<Map<String, Object>>> existingData,
+                                                            Set<String> targetColumns) {
+        for (ColumnMetadata col : tableMeta.getColumns()) {
+            if (!targetColumns.contains(col.getColumnName())) continue;
+            if (col.getReferencedTable() == null) continue;
+            if (!(generators.get(col.getColumnName()) instanceof ForeignKeyGenerator)) continue;
+
+            ForeignKeyGenerator fkGen = (ForeignKeyGenerator) generators.get(col.getColumnName());
+            String refTable = col.getReferencedTable();
+            String refCol = col.getReferencedColumn();
+
+            // 从existingData中提取父表的引用列值
+            if (existingData != null && existingData.containsKey(refTable)) {
+                List<Map<String, Object>> parentRows = existingData.get(refTable);
+                List<Object> parentKeys = new ArrayList<>();
+                for (Map<String, Object> row : parentRows) {
+                    Object val = row.get(refCol);
+                    if (val != null) parentKeys.add(val);
+                }
+                if (!parentKeys.isEmpty()) {
+                    fkGen.setParentKeys(parentKeys);
+                    log.info("重新生成: 表 {}.{} FK注入, 从existingData父表 {}.{} 获取 {} 个parentKeys",
+                            tableMeta.getTableName(), col.getColumnName(), refTable, refCol, parentKeys.size());
+                } else {
+                    log.warn("重新生成: 表 {}.{} FK警告, existingData中父表 {} 的 {} 列值为空",
+                            tableMeta.getTableName(), col.getColumnName(), refTable, refCol);
+                }
+            } else {
+                log.warn("重新生成: 表 {}.{} FK警告, existingData中未找到父表 {}",
+                        tableMeta.getTableName(), col.getColumnName(), refTable);
+            }
+        }
+    }
+
+    /**
+     * 仅为目标列中的LLM生成器预填充数据
+     */
+    private void preFillLlmGeneratorsForColumns(String tableName, TableMetadata tableMeta,
+                                                  Map<String, FieldGenerator> generators, int totalRows,
+                                                  List<String> models, Set<String> targetColumns) {
+        List<ColumnMetadata> llmColumns = tableMeta.getColumns().stream()
+                .filter(col -> targetColumns.contains(col.getColumnName()))
+                .filter(col -> generators.get(col.getColumnName()) instanceof LlmBatchGenerator)
+                .collect(Collectors.toList());
+
+        if (llmColumns.isEmpty()) return;
+
+        log.info("重新生成: 表 {} 预填充 {} 个LLM列", tableName, llmColumns.size());
+
+        List<CompletableFuture<Void>> futures = llmColumns.stream()
+                .map(col -> CompletableFuture.runAsync(() ->
+                        preFillColumn(tableName, tableMeta, col, generators, totalRows, models), llmExecutor))
+                .collect(Collectors.toList());
+
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } catch (Exception e) {
+            log.error("重新生成: LLM预填充异常: {}", e.getMessage(), e);
+        }
+    }
+
+    private ColumnMetadata findColumnMeta(TableMetadata tableMeta, String columnName) {
+        for (ColumnMetadata col : tableMeta.getColumns()) {
+            if (col.getColumnName().equalsIgnoreCase(columnName)) {
+                return col;
+            }
+        }
+        return null;
     }
 
     /**

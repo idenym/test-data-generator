@@ -4,6 +4,8 @@ import com.testdatagen.config.OpenAiConfig.ModelConfig;
 import com.testdatagen.config.OpenAiConfig.OpenAiProperties;
 import com.testdatagen.model.dto.DataGenRequest;
 import com.testdatagen.model.dto.DataPreviewResponse;
+import com.testdatagen.model.dto.RegenerateColumnsRequest;
+import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.entity.GenerationTask;
 import com.testdatagen.service.DataGeneratorService;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +78,14 @@ public class DataGenController {
         result.put("rowsGenerated", task.getRowsGenerated());
         result.put("errorMessage", task.getErrorMessage());
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 重新生成指定列的数据（保持其他列不变）
+     */
+    @PostMapping("/regenerate-columns")
+    public RegenerateColumnsResponse regenerateColumns(@Valid @RequestBody RegenerateColumnsRequest request) {
+        return dataGeneratorService.regenerateColumns(request);
     }
 
     public static class WriteRequest {

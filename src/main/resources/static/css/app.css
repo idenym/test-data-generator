@@ -2733,3 +2733,144 @@ body {
   }
 }
 
+/* ============================================
+   Preview Edit & Regenerate Styles
+   ============================================ */
+
+/* 可编辑单元格 hover 提示 */
+.preview-scroll .data-table td:not(.cell-locked) {
+  cursor: text;
+}
+
+.preview-scroll .data-table td:not(.cell-locked):hover {
+  background: rgba(99, 102, 241, 0.04);
+}
+
+/* 已修改高亮 */
+.cell-edited {
+  background: rgba(5, 150, 105, 0.08) !important;
+}
+
+/* 锁定列（自增列不可编辑） */
+.cell-locked {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+/* 内联编辑输入框 */
+.cell-inline-input {
+  width: 100%;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+/* 列头增强 */
+.col-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.col-header-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.col-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+
+.col-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.3;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.col-action-btn:hover {
+  opacity: 1;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.col-meta-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.col-selected {
+  background: rgba(99, 102, 241, 0.06) !important;
+}
+
+/* 列操作浮动菜单 */
+.col-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  min-width: 200px;
+}
+
+.col-menu-item {
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.col-menu-item:hover {
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--text-primary);
+}
+
+/* 工具栏 */
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.edit-count-badge {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
+
+/* 对比模式原始值 */
+.cell-original {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  margin-top: 2px;
+  opacity: 0.7;
+}

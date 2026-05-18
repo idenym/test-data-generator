@@ -5,6 +5,8 @@ import com.testdatagen.engine.DataGenerationPipeline;
 import com.testdatagen.model.dto.ColumnMetadata;
 import com.testdatagen.model.dto.DataGenRequest;
 import com.testdatagen.model.dto.DataPreviewResponse;
+import com.testdatagen.model.dto.RegenerateColumnsRequest;
+import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.dto.TableMetadata;
 import com.testdatagen.model.entity.GenerationTask;
@@ -60,6 +62,23 @@ public class DataGeneratorService {
         SqlAnalysisResult analysis = sqlParserService.analyze(request.getConnectionId(), request.getSql());
         DataGenerationPipeline pipeline = createPipeline();
         return pipeline.preview(request, analysis);
+    }
+
+    /**
+     * 仅重新生成指定列的数据，保持其他列不变。
+     */
+    public RegenerateColumnsResponse regenerateColumns(RegenerateColumnsRequest request) {
+        SqlAnalysisResult analysis = sqlParserService.analyze(request.getConnectionId(), request.getSql());
+        DataGenerationPipeline pipeline = createPipeline();
+        return pipeline.regenerateColumns(
+                request.getTableName(),
+                request.getColumns(),
+                request.getRowCount(),
+                request.getFieldRules(),
+                request.getModels(),
+                analysis,
+                request.getExistingData()
+        );
     }
 
     public GenerationTask execute(DataGenRequest request) {

@@ -56,6 +56,7 @@ const API = {
     previewData(data) { return this.request('post', '/generate/preview', data); },
     executeGeneration(data) { return this.request('post', '/generate/execute', data); },
     writePreviewData(data) { return this.request('post', '/generate/write', data); },
+    regenerateColumns(data) { return this.request('post', '/generate/regenerate-columns', data); },
 
     // History
     listHistory() { return this.request('get', '/history'); },
