@@ -48,7 +48,7 @@ public class SqlParserService {
             Statement statement = CCJSqlParserUtil.parse(sql);
 
             if (statement instanceof Insert) {
-                parseInsert((Insert) statement, tables, relations, warnings);
+                parseInsert((Insert) statement, tables, relations, whereHints, warnings);
             } else if (statement instanceof Select) {
                 parseSelectStatement((Select) statement, tables, relations, whereHints);
             } else {
@@ -165,14 +165,15 @@ public class SqlParserService {
         return result;
     }
 
-    private void parseInsert(Insert insert, Set<String> tables, List<RelationInfo> relations, List<String> warnings) {
+    private void parseInsert(Insert insert, Set<String> tables, List<RelationInfo> relations,
+                              List<WhereHint> whereHints, List<String> warnings) {
         Table table = insert.getTable();
         if (table != null) {
             tables.add(table.getName().toLowerCase());
         }
         Select select = insert.getSelect();
         if (select != null) {
-            parseSelectStatement(select, tables, relations, new ArrayList<>());
+            parseSelectStatement(select, tables, relations, whereHints);
         }
     }
 
@@ -221,6 +222,8 @@ public class SqlParserService {
                     for (Expression onExpr : onExpressions) {
                         extractJoinRelation(onExpr, aliasMap, relations,
                                 join.isLeft() ? "LEFT" : join.isRight() ? "RIGHT" : "INNER");
+                        // ON 条件中的 column = literal 也应作为生成规则提示
+                        extractWhereHints(onExpr, aliasMap, whereHints);
                     }
                 }
             }
