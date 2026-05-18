@@ -69,22 +69,28 @@ public class DataWriterService {
 
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             int count = 0;
+            int batchStartIndex = 0;
+            List<Map<String, Object>> currentBatch = new ArrayList<>();
+
             for (Map<String, Object> row : rows) {
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = row.get(columns.get(i));
                     setParameter(ps, i + 1, value);
                 }
                 ps.addBatch();
+                currentBatch.add(row);
                 count++;
 
                 if (count % batchSize == 0) {
-                    ps.executeBatch();
+                    executeBatchWithDiagnostics(ps, tableName, columns, currentBatch, batchStartIndex);
                     extractGeneratedKeys(ps, generatedKeys);
+                    currentBatch.clear();
+                    batchStartIndex = count;
                 }
             }
 
             if (count % batchSize != 0) {
-                ps.executeBatch();
+                executeBatchWithDiagnostics(ps, tableName, columns, currentBatch, batchStartIndex);
                 extractGeneratedKeys(ps, generatedKeys);
             }
 
@@ -94,6 +100,36 @@ public class DataWriterService {
         }
 
         return generatedKeys;
+    }
+
+    /**
+     * 执行批量写入，出错时打印当前批次中所有行的详细数据，便于排查数据截断等问题。
+     */
+    private void executeBatchWithDiagnostics(PreparedStatement ps, String tableName,
+                                              List<String> columns,
+                                              List<Map<String, Object>> currentBatch,
+                                              int batchStartIndex) throws SQLException {
+        try {
+            ps.executeBatch();
+        } catch (SQLException e) {
+            log.error("批量写入表 {} 失败，批次起始行索引: {}，批次大小: {}，异常: {}",
+                tableName, batchStartIndex, currentBatch.size(), e.getMessage());
+            for (int i = 0; i < currentBatch.size(); i++) {
+                Map<String, Object> row = currentBatch.get(i);
+                StringBuilder sb = new StringBuilder();
+                sb.append("  [行 ").append(batchStartIndex + i).append("] ");
+                for (String col : columns) {
+                    Object val = row.get(col);
+                    String display = val == null ? "NULL" : String.valueOf(val);
+                    if (display.length() > 200) {
+                        display = display.substring(0, 200) + "...(共" + display.length() + "字符)";
+                    }
+                    sb.append(col).append("=").append("'").append(display).append("'").append(" | ");
+                }
+                log.error(sb.toString());
+            }
+            throw e;
+        }
     }
 
     /**
