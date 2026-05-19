@@ -65,24 +65,20 @@ public class LlmService {
 
     private String buildGenerationPrompt(String tableName, ColumnMetadata column, String description, int batchSize) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Generate ").append(batchSize).append(" realistic test data values for a database column.\n\n");
+        sb.append("请根据以下字段定义生成").append(batchSize).append("条 realistic 且 diverse 的测试数据，仅输出 JSON 数组，不包含任何其他说明。\n\n");
         sb.append("Table: ").append(tableName).append("\n");
         sb.append("Column: ").append(column.getColumnName()).append("\n");
         sb.append("Data type: ").append(column.getColumnType()).append("\n");
         if (column.getMaxLength() != null) {
-            sb.append("Max length: ").append(column.getMaxLength()).append("\n");
+            sb.append("Max length: ").append(column.getMaxLength()).append("(若 data_type 为 varchar/char 类型，则每个生成值的字符数必须 ≤ 该值；若为数值类型则忽略此项)").append("\n");
         }
         sb.append("Nullable: ").append(column.isNullable()).append("\n");
-        if (column.getComment() != null && !column.getComment().isEmpty()) {
-            sb.append("Column comment: ").append(column.getComment()).append("\n");
-        }
         sb.append("Description: ").append(description).append("\n\n");
-        sb.append("要求:\n");
-        sb.append("- 生成的数值需要 realistic 和 diverse，生成数据可以不唯一，尽量满足多元\n");
-        sb.append("- 数据生成的规则，需要严格满足Data type所代表的数据类型和对应数据类型的最大限制以及Nullable代表的是否可空的限制，然后根据Description来构造数据，如果Description可以根据Table和Column的语义构造\n");
-        sb.append("- 只返回生成数据，以一个json数组格式，不要返回思考过程等其他内容\n");
-        sb.append("- 注意区分bigint和bigint unsigned的数值边界");
-        sb.append("- 返回示例: [\"value1\", \"value2\", ...]\n");
+        sb.append("额外要求:\n");
+        sb.append("- 若 data_type 为 varchar(n) 且 n < 36，则**严禁**生成带连字符的 UUID（长度为 36），应改用无连字符的 32 位十六进制、字母数字组合、雪花 ID 或符合长度的业务编码\n");
+        sb.append("- 若 data_type 为 bigint/bigint unsigned，注意非负范围（unsigned 最小 0，signed 最小 -2^63）\n");
+        sb.append("- 数据可以不唯一，但尽量多样化，且贴近 description 的语义，不要刻意使用边界值，尽量不要构造接近边界值的数据\n");
+        sb.append("- 输出格式：[\"value1\", \"value2\", \"value3\", \"value4\", \"value5\"]");
         return sb.toString();
     }
 
@@ -134,14 +130,19 @@ public class LlmService {
         body.put("model", actualModel);
         body.put("max_tokens", maxTokens);
         body.put("temperature", temperature);
-        if(!actualModel.startsWith("deepseek")){
+        if (actualModel.startsWith("mimo")) {
             body.put("thinking", enableThinking);
+        } else if (actualModel.startsWith("deepseek")
+        ) {
+            if (enableThinking) {
+                body.put("thinking", new JSONObject().put("type", "enabled"));
+            }
         }
 
         JSONArray messages = new JSONArray();
         JSONObject sysMsg = new JSONObject();
         sysMsg.put("role", "system");
-        sysMsg.put("content", "You are a test data generator. Generate realistic test data values. Return ONLY valid JSON, no explanations or markdown formatting.");
+        sysMsg.put("content", "你是一个严谨的数据库测试数据生成专家，必须严格遵守字段定义的所有约束（类型、长度、可空性、边界值等），绝不生成任何违反约束的值。");
         messages.add(sysMsg);
 
         JSONObject userMsg = new JSONObject();

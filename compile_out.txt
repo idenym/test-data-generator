@@ -9,13 +9,43 @@
 [INFO] Using 'UTF-8' encoding to copy filtered resources.
 [INFO] Using 'UTF-8' encoding to copy filtered properties files.
 [INFO] Copying 1 resource
-[INFO] Copying 12 resources
+[INFO] Copying 13 resources
 [INFO] 
 [INFO] --- compiler:3.10.1:compile (default-compile) @ test-data-generator ---
-[INFO] Nothing to compile - all classes are up to date
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 64 source files to D:\work\ai\test1\target\classes
+[INFO] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/impl/DefaultGenerator.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/impl/DefaultGenerator.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /D:/work/ai/test1/src/main/java/com/testdatagen/service/SqlParserService.java: D:\work\ai\test1\src\main\java\com\testdatagen\service\SqlParserService.java使用了未经检查或不安全的操作。
+[INFO] /D:/work/ai/test1/src/main/java/com/testdatagen/service/SqlParserService.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/DataGenerationPipeline.java:[582,20] 找不到符号
+  符号:   方法 getTableName()
+  位置: 类型为com.testdatagen.model.dto.ColumnMetadata的变量 col
+[ERROR] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/DataGenerationPipeline.java:[582,49] 找不到符号
+  符号:   方法 getTableName()
+  位置: 类型为com.testdatagen.model.dto.ColumnMetadata的变量 col
+[INFO] 2 errors 
+[INFO] -------------------------------------------------------------
 [INFO] ------------------------------------------------------------------------
-[INFO] BUILD SUCCESS
+[INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  0.944 s
-[INFO] Finished at: 2026-05-18T11:17:04+08:00
+[INFO] Total time:  2.629 s
+[INFO] Finished at: 2026-05-19T14:38:24+08:00
 [INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.10.1:compile (default-compile) on project test-data-generator: Compilation failure: Compilation failure: 
+[ERROR] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/DataGenerationPipeline.java:[582,20] 找不到符号
+[ERROR]   符号:   方法 getTableName()
+[ERROR]   位置: 类型为com.testdatagen.model.dto.ColumnMetadata的变量 col
+[ERROR] /D:/work/ai/test1/src/main/java/com/testdatagen/engine/DataGenerationPipeline.java:[582,49] 找不到符号
+[ERROR]   符号:   方法 getTableName()
+[ERROR]   位置: 类型为com.testdatagen.model.dto.ColumnMetadata的变量 col
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

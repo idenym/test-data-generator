@@ -40,6 +40,9 @@ public class GenerationTask {
     @Column(columnDefinition = "TEXT")
     private String analysisSnapshot;
 
+    @Column(columnDefinition = "MEDIUMTEXT")
+    private String generatedDataSnapshot;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
@@ -67,4 +70,6 @@ public class GenerationTask {
     public void setRulesSnapshot(String rulesSnapshot) { this.rulesSnapshot = rulesSnapshot; }
     public String getAnalysisSnapshot() { return analysisSnapshot; }
     public void setAnalysisSnapshot(String analysisSnapshot) { this.analysisSnapshot = analysisSnapshot; }
+    public String getGeneratedDataSnapshot() { return generatedDataSnapshot; }
+    public void setGeneratedDataSnapshot(String generatedDataSnapshot) { this.generatedDataSnapshot = generatedDataSnapshot; }
 }

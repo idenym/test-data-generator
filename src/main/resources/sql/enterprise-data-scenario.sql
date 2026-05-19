@@ -9,7 +9,7 @@
 -- 说明：上游系统提供的标准码值映射，如企业类型、经营状态等
 -- ------------------------------------------------------------
 CREATE TABLE t_upstream_code (
-    code_id          VARCHAR(32)  PRIMARY KEY COMMENT '码值ID',
+    code_id          VARCHAR(32)  NOT NULL COMMENT '码值ID',
     code_type        VARCHAR(64)  NOT NULL COMMENT '码值类型',
     code_type_name   VARCHAR(128) NOT NULL COMMENT '码值类型名称',
     code_key         VARCHAR(32)  NOT NULL COMMENT '码值键',
@@ -31,7 +31,7 @@ CREATE TABLE t_upstream_code (
 -- 说明：外部数据源提供的码值映射，如行业分类、地区编码等
 -- ------------------------------------------------------------
 CREATE TABLE t_external_code (
-    ext_code_id      VARCHAR(32)  PRIMARY KEY COMMENT '外部码值ID',
+    ext_code_id      VARCHAR(32)  NOT NULL COMMENT '外部码值ID',
     data_source      VARCHAR(64)  NOT NULL COMMENT '数据源标识',
     category_code    VARCHAR(64)  NOT NULL COMMENT '分类编码',
     category_name    VARCHAR(128) NOT NULL COMMENT '分类名称',
@@ -54,7 +54,7 @@ CREATE TABLE t_external_code (
 -- 说明：工商系统的关键字段映射，如统一社会信用代码规则、注册号规则等
 -- ------------------------------------------------------------
 CREATE TABLE t_gs_key (
-    key_id           VARCHAR(32)  PRIMARY KEY COMMENT 'Key ID',
+    key_id           VARCHAR(32)  NOT NULL COMMENT 'Key ID',
     key_type         VARCHAR(32)  NOT NULL COMMENT 'Key类型: CREDIT_CODE/REG_NO/ORG_CODE',
     key_value        VARCHAR(128) NOT NULL COMMENT 'Key值',
     key_name         VARCHAR(128) NOT NULL COMMENT 'Key名称',
@@ -74,7 +74,7 @@ CREATE TABLE t_gs_key (
 -- 说明：法人及企业相关证件信息
 -- ------------------------------------------------------------
 CREATE TABLE t_legal_person_cert (
-    cert_id          VARCHAR(32)  PRIMARY KEY COMMENT '证件记录ID',
+    cert_id          VARCHAR(32)  NOT NULL COMMENT '证件记录ID',
     cust_no          VARCHAR(32)  NOT NULL COMMENT '客户号',
     cert_type        VARCHAR(16)  NOT NULL COMMENT '证件类型: ID-身份证 BL-营业执照 ORG-组织机构代码',
     cert_no          VARCHAR(64)  NOT NULL COMMENT '证件号码',
@@ -103,7 +103,7 @@ CREATE TABLE t_legal_person_cert (
 -- 说明：客户唯一标识体系，统一客户识别
 -- ------------------------------------------------------------
 CREATE TABLE t_customer_identity (
-    cust_no          VARCHAR(32)  PRIMARY KEY COMMENT '客户号',
+    cust_no          VARCHAR(32)  NOT NULL COMMENT '客户号',
     cust_type        VARCHAR(16)  NOT NULL COMMENT '客户类型: 1企业 2个人 3商户 4机构',
     cust_name        VARCHAR(256) NOT NULL COMMENT '客户名称',
     cust_short_name  VARCHAR(128) COMMENT '客户简称',
@@ -131,13 +131,13 @@ CREATE TABLE t_customer_identity (
 -- 说明：核心企业信息，包含工商注册、经营、股东等全方位信息
 -- ------------------------------------------------------------
 CREATE TABLE t_enterprise_base (
-    ent_id           VARCHAR(32)  PRIMARY KEY COMMENT '企业ID',
+    ent_id           VARCHAR(32)  NOT NULL COMMENT '企业ID',
     unified_code     VARCHAR(32)  NOT NULL COMMENT '统一社会信用代码',
     ent_name         VARCHAR(256) NOT NULL COMMENT '企业全称',
     ent_short_name   VARCHAR(128) COMMENT '企业简称',
-    ent_type_code    VARCHAR(16)  COMMENT '企业类型编码',
+    ent_type_code    VARCHAR(32)  COMMENT '企业类型编码(对齐t_upstream_code.code_key)',
     ent_type_name    VARCHAR(64)  COMMENT '企业类型名称',
-    reg_type_code    VARCHAR(16)  COMMENT '注册类型编码',
+    reg_type_code    VARCHAR(32)  COMMENT '注册类型编码(对齐t_upstream_code.code_key)',
     reg_type_name    VARCHAR(64)  COMMENT '注册类型名称',
     reg_capital      DECIMAL(18,4) COMMENT '注册资本(万元)',
     paid_capital     DECIMAL(18,4) COMMENT '实缴资本(万元)',
@@ -146,9 +146,9 @@ CREATE TABLE t_enterprise_base (
     business_status  VARCHAR(16) COMMENT '经营状态: 1存续 2在业 3吊销 4注销 5迁出',
     reg_address      VARCHAR(512) COMMENT '注册地址',
     business_address VARCHAR(512) COMMENT '经营地址',
-    province_code    VARCHAR(8)   COMMENT '省份编码',
+    province_code    VARCHAR(128) COMMENT '省份编码(对齐t_gs_key.key_value)',
     province_name    VARCHAR(64)  COMMENT '省份名称',
-    city_code        VARCHAR(8)   COMMENT '城市编码',
+    city_code        VARCHAR(128) COMMENT '城市编码(对齐t_gs_key.key_value)',
     city_name        VARCHAR(64)  COMMENT '城市名称',
     district_code    VARCHAR(8)   COMMENT '区县编码',
     district_name    VARCHAR(64)  COMMENT '区县名称',
@@ -162,7 +162,7 @@ CREATE TABLE t_enterprise_base (
     contact_phone    VARCHAR(32)  COMMENT '联系人电话',
     contact_email    VARCHAR(128) COMMENT '联系人邮箱',
     business_scope   TEXT COMMENT '经营范围',
-    industry_code    VARCHAR(16)  COMMENT '行业分类编码',
+    industry_code    VARCHAR(32)  COMMENT '行业分类编码(对齐t_external_code.code_item)',
     industry_name    VARCHAR(128) COMMENT '行业分类名称',
     reg_org          VARCHAR(128) COMMENT '登记机关',
     approval_date    DATE COMMENT '核准日期',
@@ -172,7 +172,7 @@ CREATE TABLE t_enterprise_base (
     annual_revenue   DECIMAL(18,2) COMMENT '年营业额(万元)',
     tax_no           VARCHAR(32)  COMMENT '纳税人识别号',
     tax_type         VARCHAR(16)  COMMENT '纳税类型: 1一般纳税人 2小规模纳税人',
-    ent_scale        VARCHAR(16)  COMMENT '企业规模: 1大型 2中型 3小型 4微型',
+    ent_scale        VARCHAR(32)  COMMENT '企业规模(对齐t_upstream_code.code_key): 1大型 2中型 3小型 4微型',
     hi_tech_flag     CHAR(1) DEFAULT '0' COMMENT '高新技术企业标志: 1是 0否',
     ie_right_flag    CHAR(1) DEFAULT '0' COMMENT '进出口权标志: 1有 0无',
     listed_flag      CHAR(1) DEFAULT '0' COMMENT '是否上市: 1是 0否',
@@ -191,7 +191,7 @@ CREATE TABLE t_enterprise_base (
 -- 说明：商户经营信息，包含结算、费率、风险等
 -- ------------------------------------------------------------
 CREATE TABLE t_merchant_base (
-    merchant_id      VARCHAR(32)  PRIMARY KEY COMMENT '商户ID',
+    merchant_id      VARCHAR(32)  NOT NULL COMMENT '商户ID',
     ent_id           VARCHAR(32)  NOT NULL COMMENT '企业ID(关联t_enterprise_base)',
     cust_no          VARCHAR(32)  NOT NULL COMMENT '客户号(关联t_customer_identity)',
     merchant_name    VARCHAR(256) NOT NULL COMMENT '商户名称',
@@ -225,9 +225,8 @@ CREATE TABLE t_merchant_base (
     monthly_turnover DECIMAL(18,2) COMMENT '月营业额',
     data_source      VARCHAR(32)  COMMENT '数据来源',
     create_time      TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time      TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
-    FOREIGN KEY (ent_id) REFERENCES t_enterprise_base(ent_id)
-) COMMENT '法人商户基本信息表';
+    update_time      TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间'
+    ) COMMENT '法人商户基本信息表';
 
 -- ------------------------------------------------------------
 -- 目标表: 全量工商企业信息表 (t_full_enterprise_info)
@@ -235,7 +234,7 @@ CREATE TABLE t_merchant_base (
 -- ------------------------------------------------------------
 CREATE TABLE t_full_enterprise_info (
     -- 主键与客户标识
-    record_id        VARCHAR(32)  PRIMARY KEY COMMENT '记录ID',
+    record_id        VARCHAR(32)  NOT NULL COMMENT '记录ID',
     cust_no          VARCHAR(32)  COMMENT '客户号',
     ent_id           VARCHAR(32)  COMMENT '企业ID',
     merchant_id      VARCHAR(32)  COMMENT '商户ID',
@@ -251,11 +250,11 @@ CREATE TABLE t_full_enterprise_info (
     cust_name        VARCHAR(128) COMMENT '客户名称',
 
     -- 企业类型与分类
-    ent_type_code    VARCHAR(16)  COMMENT '企业类型编码',
+    ent_type_code    VARCHAR(32)  COMMENT '企业类型编码',
     ent_type_name    VARCHAR(64)  COMMENT '企业类型名称',
-    reg_type_code    VARCHAR(16)  COMMENT '注册类型编码',
+    reg_type_code    VARCHAR(32)  COMMENT '注册类型编码',
     reg_type_name    VARCHAR(64)  COMMENT '注册类型名称',
-    industry_code    VARCHAR(16)  COMMENT '行业分类编码',
+    industry_code    VARCHAR(32)  COMMENT '行业分类编码',
     industry_name    VARCHAR(128) COMMENT '行业分类名称',
     biz_category     VARCHAR(32)  COMMENT '经营类目编码',
     biz_category_name VARCHAR(128) COMMENT '经营类目名称',
@@ -264,7 +263,7 @@ CREATE TABLE t_full_enterprise_info (
     reg_capital      DECIMAL(18,4) COMMENT '注册资本(万元)',
     paid_capital     DECIMAL(18,4) COMMENT '实缴资本(万元)',
     currency_code    VARCHAR(8)   COMMENT '币种',
-    ent_scale        VARCHAR(16)  COMMENT '企业规模',
+    ent_scale        VARCHAR(32)  COMMENT '企业规模',
 
     -- 经营时间信息
     establish_date   DATE COMMENT '成立日期',
@@ -282,9 +281,9 @@ CREATE TABLE t_full_enterprise_info (
     reg_address      VARCHAR(512) COMMENT '注册地址',
     business_address VARCHAR(512) COMMENT '经营地址',
     actual_address   VARCHAR(512) COMMENT '实际经营地址',
-    province_code    VARCHAR(8)   COMMENT '省份编码',
+    province_code    VARCHAR(128) COMMENT '省份编码',
     province_name    VARCHAR(64)  COMMENT '省份名称',
-    city_code        VARCHAR(8)   COMMENT '城市编码',
+    city_code        VARCHAR(128) COMMENT '城市编码',
     city_name        VARCHAR(64)  COMMENT '城市名称',
     district_code    VARCHAR(8)   COMMENT '区县编码',
     district_name    VARCHAR(64)  COMMENT '区县名称',

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -99,12 +100,14 @@ public class DataGeneratorService {
             task.setAnalysisSnapshot(JSON.toJSONString(analysis));
 
             DataGenerationPipeline pipeline = createPipeline();
-            Map<String, Integer> result = pipeline.execute(request, analysis);
+            DataGenerationPipeline.ExecutionResult execResult = pipeline.execute(request, analysis);
 
-            int totalRows = result.values().stream().mapToInt(Integer::intValue).sum();
+            int totalRows = execResult.getRowCounts().values().stream().mapToInt(Integer::intValue).sum();
             task.setStatus(TaskStatus.SUCCESS);
             task.setRowsGenerated(totalRows);
             task.setCompletedAt(LocalDateTime.now());
+            // 保存数据快照（每表最多 200 行）
+            task.setGeneratedDataSnapshot(JSON.toJSONString(execResult.getTableData()));
 
             // 写入成功后保存字段规则历史
             ruleService.saveFieldRuleHistory(request.getFieldRules(), request.getSqlScriptId());
@@ -172,6 +175,18 @@ public class DataGeneratorService {
             task.setStatus(TaskStatus.SUCCESS);
             task.setRowsGenerated(totalRows);
             task.setCompletedAt(LocalDateTime.now());
+            // 保存数据快照（每表最多 200 行）
+            {
+                Map<String, List<Map<String, Object>>> snapshot = new LinkedHashMap<>();
+                for (String tableName : previewData.getGenerationOrder()) {
+                    List<Map<String, Object>> rows = previewData.getTableData().get(tableName);
+                    if (rows != null) {
+                        if (rows.size() > 200) rows = rows.subList(0, 200);
+                        snapshot.put(tableName, new ArrayList<>(rows));
+                    }
+                }
+                task.setGeneratedDataSnapshot(JSON.toJSONString(snapshot));
+            }
 
             // 写入成功后保存字段规则历史
             ruleService.saveFieldRuleHistory(fieldRules, sqlScriptId);

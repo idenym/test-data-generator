@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/history")
@@ -25,6 +26,11 @@ public class HistoryController {
     @GetMapping("/{id}")
     public GenerationTask getById(@PathVariable Long id) {
         return historyService.getById(id);
+    }
+
+    @GetMapping("/{id}/data")
+    public Map<String, Object> getGeneratedData(@PathVariable Long id) {
+        return historyService.getGeneratedData(id);
     }
 
     @DeleteMapping("/{id}")

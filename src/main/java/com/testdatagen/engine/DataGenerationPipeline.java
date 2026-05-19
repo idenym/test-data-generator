@@ -26,6 +26,22 @@ public class DataGenerationPipeline {
 
     private static final Logger log = LoggerFactory.getLogger(DataGenerationPipeline.class);
 
+    /**
+     * execute() 方法的返回值：同时包含行计数和生成的原始数据。
+     */
+    public static class ExecutionResult {
+        private final Map<String, Integer> rowCounts;
+        private final Map<String, List<Map<String, Object>>> tableData;
+
+        public ExecutionResult(Map<String, Integer> rowCounts, Map<String, List<Map<String, Object>>> tableData) {
+            this.rowCounts = rowCounts;
+            this.tableData = tableData;
+        }
+
+        public Map<String, Integer> getRowCounts() { return rowCounts; }
+        public Map<String, List<Map<String, Object>>> getTableData() { return tableData; }
+    }
+
     private final ConnectionService connectionService;
     private final RuleMatchingEngine ruleMatchingEngine;
     private final LlmService llmService;
@@ -141,11 +157,12 @@ public class DataGenerationPipeline {
      * Generate data and write to DB in a single transaction.
      * 同层级的表并行生成数据，写入时在同一事务下顺序执行。
      * All tables are written within the same transaction - if any table fails, all writes are rolled back.
-     * Returns map of tableName -> rows written count.
+     * Returns ExecutionResult with row counts and generated data rows (capped at 200 rows per table for snapshot).
      */
-    public Map<String, Integer> execute(DataGenRequest request, SqlAnalysisResult analysisResult) {
+    public ExecutionResult execute(DataGenRequest request, SqlAnalysisResult analysisResult) {
         Map<String, Integer> result = new LinkedHashMap<>();
         Map<String, List<Object>> generatedPkMap = new ConcurrentHashMap<>();
+        Map<String, List<Map<String, Object>>> snapshotData = new LinkedHashMap<>();
 
         // 按依赖层级并行生成所有表的数据
         Map<String, TableWriteData> allTableDataMap = new ConcurrentHashMap<>();
@@ -183,6 +200,15 @@ public class DataGenerationPipeline {
             }
         }
 
+        // 收集数据快照（每表最多 200 行）
+        for (TableWriteData data : allTableData) {
+            List<Map<String, Object>> rows = data.rows;
+            if (rows.size() > 200) {
+                rows = rows.subList(0, 200);
+            }
+            snapshotData.put(data.tableName, new ArrayList<>(rows));
+        }
+
         // 在同一事务下写入所有表
         try (java.sql.Connection conn = connectionService.getConnection(request.getConnectionId())) {
             conn.setAutoCommit(false);
@@ -206,7 +232,7 @@ public class DataGenerationPipeline {
             throw new RuntimeException("获取数据库连接失败: " + e.getMessage(), e);
         }
 
-        return result;
+        return new ExecutionResult(result, snapshotData);
     }
 
     /**
@@ -276,7 +302,7 @@ public class DataGenerationPipeline {
                 } else {
                     context.put("currentRow", new HashMap<>());
                 }
-                values.add(gen.generate(context));
+                values.add(truncateIfNeeded(gen.generate(context), findColumnMeta(tableMeta, col)));
             }
             response.putColumnValues(col, values);
         }
@@ -560,12 +586,28 @@ public class DataGenerationPipeline {
                 FieldGenerator gen = generators.get(col.getColumnName());
                 if (gen != null) {
                     Object value = gen.generate(context);
-                    row.put(col.getColumnName(), value);
+                    row.put(col.getColumnName(), truncateIfNeeded(value, col));
                 }
             }
             rows.add(row);
         }
         return rows;
+    }
+
+    /**
+     * 根据列的 maxLength 约束截断字符串值，防止写入时 Data too long 错误。
+     * 仅对 String 类型值生效，其他类型原样返回。
+     */
+    private Object truncateIfNeeded(Object value, ColumnMetadata col) {
+        if (!(value instanceof String)) return value;
+        String str = (String) value;
+        Integer maxLen = col.getMaxLength();
+        if (maxLen == null || maxLen <= 0 || str.length() <= maxLen) return value;
+        String truncated = str.substring(0, maxLen);
+        log.debug("截断字段 {}: 原长度={}, maxLength={}, 截断后='{}'",
+                col.getColumnName(), str.length(), maxLen,
+                truncated.length() > 20 ? truncated.substring(0, 20) + "..." : truncated);
+        return truncated;
     }
 
     private void trackGeneratedPks(TableMetadata tableMeta, List<Map<String, Object>> rows,

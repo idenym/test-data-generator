@@ -68,7 +68,7 @@ public class OpenAiConfig {
         private int maxTokens = 10000;
         private double temperature = 0.8;
         private int timeoutSeconds = 60;
-        private boolean enableThinking = false;
+        private boolean enableThinking = true;
         private Map<String, ModelConfig> models = new HashMap<>();
 
         public String getApiKey() { return apiKey; }

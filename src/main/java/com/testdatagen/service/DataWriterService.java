@@ -112,24 +112,54 @@ public class DataWriterService {
         try {
             ps.executeBatch();
         } catch (SQLException e) {
-            log.error("批量写入表 {} 失败，批次起始行索引: {}，批次大小: {}，异常: {}",
-                tableName, batchStartIndex, currentBatch.size(), e.getMessage());
+            // 从 JDBC 异常消息中解析 "at row N"（1-based）
+            int problemRowInBatch = extractProblemRowIndex(e.getMessage());
+
+            StringBuilder diag = new StringBuilder();
+            diag.append("批量写入表 ").append(tableName).append(" 失败。");
+            diag.append("批次起始行索引=").append(batchStartIndex);
+            diag.append(", 批次大小=").append(currentBatch.size());
+            diag.append(", JDBC报告问题行=").append(problemRowInBatch);
+            diag.append(", 异常=").append(e.getMessage());
+            diag.append("\n--- 批次内全部数据（共 ").append(currentBatch.size()).append(" 行）---");
+
             for (int i = 0; i < currentBatch.size(); i++) {
                 Map<String, Object> row = currentBatch.get(i);
-                StringBuilder sb = new StringBuilder();
-                sb.append("  [行 ").append(batchStartIndex + i).append("] ");
+                boolean isProblemRow = (problemRowInBatch > 0 && i + 1 == problemRowInBatch);
+                diag.append("\n[").append(batchStartIndex + i).append("]");
+                if (isProblemRow) diag.append(" <-- JDBC报告的问题行");
+                diag.append(" ");
                 for (String col : columns) {
                     Object val = row.get(col);
                     String display = val == null ? "NULL" : String.valueOf(val);
-                    if (display.length() > 200) {
-                        display = display.substring(0, 200) + "...(共" + display.length() + "字符)";
+                    if (display.length() > 100) {
+                        display = display.substring(0, 100) + "...(共" + display.length() + "字符)";
                     }
-                    sb.append(col).append("=").append("'").append(display).append("'").append(" | ");
+                    diag.append(col).append("=").append("'").append(display).append("'").append(" |");
                 }
-                log.error(sb.toString());
             }
-            throw e;
+            diag.append("\n--- 数据结束 ---");
+
+            log.error(diag.toString());
+            throw new SQLException(diag.toString(), e);
         }
+    }
+
+    /**
+     * 从 JDBC 批量异常消息中提取 "at row N" 中的 N（1-based）。
+     * 例如 "Data too long for column 'ent_id' at row 1" -> 返回 1
+     */
+    private int extractProblemRowIndex(String message) {
+        if (message == null) return -1;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("at row (\\d+)");
+        java.util.regex.Matcher m = p.matcher(message);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return -1;
     }
 
     /**

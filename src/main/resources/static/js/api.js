@@ -61,5 +61,6 @@ const API = {
     // History
     listHistory() { return this.request('get', '/history'); },
     getHistory(id) { return this.request('get', `/history/${id}`); },
+    getGeneratedData(id) { return this.request('get', `/history/${id}/data`); },
     deleteHistory(id) { return this.request('delete', `/history/${id}`); },
 };

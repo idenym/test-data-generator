@@ -137,9 +137,9 @@ public class RangeGenerator implements FieldGenerator {
     }
 
     private LocalDate parseDateMin() {
-        if (isBlank(min)) return LocalDate.of(1970, 1, 1);
+        if (isBlank(min)) return LocalDate.of(2000, 1, 1);
         try { return LocalDate.parse(min.trim()); }
-        catch (Exception e) { return LocalDate.of(1970, 1, 1); }
+        catch (Exception e) { return LocalDate.of(2000, 1, 1); }
     }
 
     private LocalDate parseDateMax() {
@@ -161,12 +161,12 @@ public class RangeGenerator implements FieldGenerator {
     }
 
     private LocalDateTime parseDateTimeMin() {
-        if (isBlank(min)) return LocalDateTime.of(1970, 1, 1, 0, 0, 0);
+        if (isBlank(min)) return LocalDateTime.of(2000, 1, 1, 0, 0, 0);
         try {
             String normalized = min.trim().replace(" ", "T");
             return LocalDateTime.parse(normalized);
         } catch (Exception e) {
-            return LocalDateTime.of(1970, 1, 1, 0, 0, 0);
+            return LocalDateTime.of(2000, 1, 1, 0, 0, 0);
         }
     }
 
