@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestDataGen — 测试数据构造工具</title>
+    <meta name="description" content="智能测试数据构造工具，解析SQL自动生成符合Schema约束的测试数据">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css?v=20260519t3">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-mark" @click="goHome" style="cursor:pointer;">⚡</div>
+                <span class="logo-text" @click="goHome" style="cursor:pointer;">TestDataGen</span>
+                <span class="logo-subtitle">测试数据构造工具</span>
+            </div>
+            <div class="header-right">
+                <button v-if="view !== 'home'" class="btn btn-ghost btn-sm" @click="goHome">
+                    ← 回到首页
+                </button>
+                <button v-if="view === 'home'" class="btn btn-primary" @click="startNewTask">
+                    ＋ 新建任务
+                </button>
+            </div>
+        </header>
+
+        <!-- Stepper (仅在流程模式时显示) -->
+        <nav class="stepper-container" v-if="view === 'flow'">
+            <div class="stepper">
+                <template v-for="(step, index) in steps" :key="step.key">
+                    <div class="step-item"
+                         :class="{ active: currentStep === index, completed: index < currentStep }"
+                         @click="goToStep(index)">
+                        <div class="step-number">
+                            <template v-if="index < currentStep">✓</template>
+                            <template v-else>{{ index + 1 }}</template>
+                        </div>
+                        <span class="step-label">{{ step.title }}</span>
+                    </div>
+                    <div v-if="index < steps.length - 1"
+                         class="step-connector"
+                         :class="{ completed: index < currentStep }">
+                    </div>
+                </template>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Home 视图: 历史任务总览 -->
+            <home-page v-if="view === 'home'"
+                @new-task="startNewTask"
+                @view-detail="viewTaskDetail">
+            </home-page>
+
+            <!-- Flow 视图: 4步流程 -->
+            <template v-if="view === 'flow'">
+                <connection-page v-if="currentStep === 0"
+                    ref="connPage"
+                    @connection-selected="onConnectionSelected"
+                    @next="nextStep">
+                </connection-page>
+
+                <sql-input-page v-if="currentStep === 1"
+                    :connection-id="selectedConnectionId"
+                    @analysis-done="onAnalysisDone"
+                    @script-selected="onSqlScriptSelected"
+                    @prev="prevStep"
+                    @next="nextStep">
+                </sql-input-page>
+
+                <rule-config-page v-if="currentStep === 2"
+                    :connection-id="selectedConnectionId"
+                    :analysis-result="analysisResult"
+                    :sql-script-id="currentSqlScriptId"
+                    :saved-rules="fieldRules"
+                    @update-rules="onUpdateFieldRules"
+                    @prev="prevStep"
+                    @next="nextStep">
+                </rule-config-page>
+
+                <generate-page v-if="currentStep === 3"
+                    :connection-id="selectedConnectionId"
+                    :analysis-result="analysisResult"
+                    :current-sql="currentSql"
+                    :field-rules="fieldRules"
+                    :sql-script-id="currentSqlScriptId"
+                    @prev="prevStep"
+                    @done="goHome">
+                </generate-page>
+            </template>
+
+            <!-- Detail 视图: 任务详情 -->
+            <task-detail-page v-if="view === 'detail'"
+                :task-id="detailTaskId"
+                @back="goHome">
+            </task-detail-page>
+        </main>
+
+        <!-- Toast Container -->
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3.4.15/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios@1.6.5/dist/axios.min.js"></script>
+    <script src="/js/api.js?v=20260519t3"></script>
+    <script src="/js/toast.js?v=20260519t3"></script>
+    <script src="/js/pages/HomePage.js?v=20260519t3"></script>
+    <script src="/js/pages/SchemaGraph.js?v=20260519t3"></script>
+    <script src="/js/pages/TaskDetailPage.js?v=20260519t3"></script>
+    <script src="/js/pages/ConnectionPage.js?v=20260519t3"></script>
+    <script src="/js/pages/SqlInputPage.js?v=20260519t3"></script>
+    <script src="/js/pages/RuleConfigPage.js?v=20260519t3"></script>
+    <script src="/js/pages/GeneratePage.js?v=20260519t3"></script>
+    <script src="/js/app.js?v=20260519t3"></script>
+</body>
+</html>

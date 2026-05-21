@@ -101,10 +101,11 @@ public class LlmService {
             if (col.getReferencedTable() != null) sb.append(" [FK->").append(col.getReferencedTable()).append("]");
             sb.append("\n");
         }
-        sb.append("\nFor each non-auto-increment column, suggest the best approach to generate realistic test data.\n");
+        sb.append("\n对于每个非自增字段，根据字段的数据类型和数据长度上线，给出最佳建议用于生成改字段数据\n");
         sb.append("Return JSON array: [{\"columnName\":\"...\",\"ruleType\":\"REGEX|RANGE|ENUM|LLM_DESCRIPTION\",\"ruleConfig\":{...},\"description\":\"...\"}]\n");
         sb.append("ruleType options: REGEX (with pattern), RANGE (with min/max/type), ENUM (with values/weights), LLM_DESCRIPTION (with description)\n");
         sb.append("\n请用中文回答，description字段请使用中文描述。\n");
+        log.debug("");
         return sb.toString();
     }
 
