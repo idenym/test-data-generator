@@ -1,17 +1,16 @@
 # Build stage
-FROM docker.1ms.run/library/maven:3.8-openjdk-11-slim AS build
+FROM maven:3.8-openjdk-11-slim AS build
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline -B -Dmaven.repo.url=https://maven.aliyun.com/repository/public
+RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn package -DskipTests -B
 
 # Runtime stage
-FROM docker.1ms.run/library/openjdk:11-jre-slim
+FROM openjdk:11-jre-slim
 WORKDIR /app
 
-RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
