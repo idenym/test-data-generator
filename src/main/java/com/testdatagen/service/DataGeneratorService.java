@@ -127,11 +127,22 @@ public class DataGeneratorService {
     public GenerationTask writePreviewData(Long connectionId, String sql,
                                             DataPreviewResponse previewData,
                                             List<DataGenRequest.FieldRuleRequest> fieldRules,
-                                            Long sqlScriptId) {
+                                            Long sqlScriptId,
+                                            Boolean hasManualEdits, Boolean hasRegeneration,
+                                            Map<String, List<String>> regeneratedColumns,
+                                            Integer editedCellCount, Integer regeneratedCellCount,
+                                            Integer totalCellCount) {
         GenerationTask task = new GenerationTask();
         task.setConnectionId(connectionId);
         task.setInputSql(sql);
         task.setStatus(TaskStatus.RUNNING);
+        // 保存编辑/重生成元数据
+        task.setHasManualEdits(hasManualEdits != null ? hasManualEdits : false);
+        task.setHasRegeneration(hasRegeneration != null ? hasRegeneration : false);
+        task.setRegeneratedColumns(regeneratedColumns != null ? JSON.toJSONString(regeneratedColumns) : null);
+        task.setEditedCellCount(editedCellCount != null ? editedCellCount : 0);
+        task.setRegeneratedCellCount(regeneratedCellCount != null ? regeneratedCellCount : 0);
+        task.setTotalCellCount(totalCellCount != null ? totalCellCount : 0);
         // 保存规则快照
         if (fieldRules != null && !fieldRules.isEmpty()) {
             task.setRulesSnapshot(JSON.toJSONString(fieldRules));

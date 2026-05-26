@@ -3459,3 +3459,51 @@ body {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
+
+/* ==================== 统计面板 ==================== */
+.stats-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+}
+.stats-panel .stats-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.stats-panel .stats-item strong {
+  color: var(--text-primary);
+}
+.stats-panel .stats-divider {
+  color: var(--border-color);
+}
+
+/* ==================== 历史记录标识 ==================== */
+.task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.task-badge-edit {
+  background: var(--warning-bg, #fef3cd);
+  color: var(--warning-text, #856404);
+}
+.task-badge-regen {
+  background: var(--info-bg, #d1ecf1);
+  color: var(--info-text, #0c5460);
+}
+.task-badge-adoption {
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+}

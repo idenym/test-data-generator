@@ -37,5 +37,15 @@ BOOT-INF/
 jar-contents*.txt
 *.png
 
+# Environment variables (contains secrets)
+.env
+
+# Data directory
+data/
+
+# Nginx SSL certs
+deploy/nginx/ssl/*.pem
+deploy/nginx/ssl/*.key
+
 # Qoder
 .qoder/

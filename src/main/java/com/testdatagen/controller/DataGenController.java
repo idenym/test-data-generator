@@ -70,7 +70,9 @@ public class DataGenController {
 
         GenerationTask task = dataGeneratorService.writePreviewData(
                 request.getConnectionId(), request.getSql(), previewData, request.getFieldRules(),
-                request.getSqlScriptId());
+                request.getSqlScriptId(), request.getHasManualEdits(), request.getHasRegeneration(),
+                request.getRegeneratedColumns(), request.getEditedCellCount(),
+                request.getRegeneratedCellCount(), request.getTotalCellCount());
 
         Map<String, Object> result = new HashMap<>();
         result.put("taskId", task.getId());
@@ -95,6 +97,12 @@ public class DataGenController {
         private List<String> generationOrder;
         private List<DataGenRequest.FieldRuleRequest> fieldRules;
         private Long sqlScriptId;
+        private Boolean hasManualEdits;
+        private Boolean hasRegeneration;
+        private Map<String, List<String>> regeneratedColumns;
+        private Integer editedCellCount;
+        private Integer regeneratedCellCount;
+        private Integer totalCellCount;
 
         public Long getConnectionId() { return connectionId; }
         public void setConnectionId(Long connectionId) { this.connectionId = connectionId; }
@@ -108,5 +116,17 @@ public class DataGenController {
         public void setFieldRules(List<DataGenRequest.FieldRuleRequest> fieldRules) { this.fieldRules = fieldRules; }
         public Long getSqlScriptId() { return sqlScriptId; }
         public void setSqlScriptId(Long sqlScriptId) { this.sqlScriptId = sqlScriptId; }
+        public Boolean getHasManualEdits() { return hasManualEdits; }
+        public void setHasManualEdits(Boolean hasManualEdits) { this.hasManualEdits = hasManualEdits; }
+        public Boolean getHasRegeneration() { return hasRegeneration; }
+        public void setHasRegeneration(Boolean hasRegeneration) { this.hasRegeneration = hasRegeneration; }
+        public Map<String, List<String>> getRegeneratedColumns() { return regeneratedColumns; }
+        public void setRegeneratedColumns(Map<String, List<String>> regeneratedColumns) { this.regeneratedColumns = regeneratedColumns; }
+        public Integer getEditedCellCount() { return editedCellCount; }
+        public void setEditedCellCount(Integer editedCellCount) { this.editedCellCount = editedCellCount; }
+        public Integer getRegeneratedCellCount() { return regeneratedCellCount; }
+        public void setRegeneratedCellCount(Integer regeneratedCellCount) { this.regeneratedCellCount = regeneratedCellCount; }
+        public Integer getTotalCellCount() { return totalCellCount; }
+        public void setTotalCellCount(Integer totalCellCount) { this.totalCellCount = totalCellCount; }
     }
 }

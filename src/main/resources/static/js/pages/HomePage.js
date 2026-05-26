@@ -90,6 +90,9 @@ const HomePage = {
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
                             {{ task.rowsGenerated || 0 }}/{{ task.rowCount || 0 }} 行
                         </span>
+                        <span v-if="task.hasManualEdits" class="task-badge task-badge-edit">&#9998; 手动编辑</span>
+                        <span v-if="task.hasRegeneration" class="task-badge task-badge-regen">&#8635; 重新生成</span>
+                        <span v-if="task.totalCellCount > 0" class="task-badge task-badge-adoption">采纳率 {{ getTaskAdoptionRate(task) }}%</span>
                         <span class="task-meta-item">
                             {{ formatTime(task.startedAt) }}
                         </span>
@@ -199,6 +202,13 @@ const HomePage = {
                 return timeStr.replace('T', ' ').substring(0, 16);
             }
             return String(timeStr);
+        },
+        getTaskAdoptionRate(task) {
+            if (!task.totalCellCount || task.totalCellCount === 0) return '—';
+            const edited = task.editedCellCount || 0;
+            const regen = task.regeneratedCellCount || 0;
+            const rate = (task.totalCellCount - edited - regen) / task.totalCellCount * 100;
+            return Math.max(0, rate).toFixed(1);
         },
     },
 };

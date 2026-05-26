@@ -30,8 +30,26 @@ const TaskDetailPage = {
                     <span class="detail-topbar-stat-val detail-topbar-stat-time">{{ formatTime(task.completedAt) }}</span>
                     <span class="detail-topbar-stat-lbl">完成</span>
                 </div>
+                <div v-if="task.totalCellCount > 0" class="detail-topbar-stat">
+                    <span class="detail-topbar-stat-val">{{ task.editedCellCount || 0 }}</span>
+                    <span class="detail-topbar-stat-lbl">手动编辑</span>
+                </div>
+                <div v-if="task.totalCellCount > 0" class="detail-topbar-stat">
+                    <span class="detail-topbar-stat-val">{{ task.regeneratedCellCount || 0 }}</span>
+                    <span class="detail-topbar-stat-lbl">重新生成</span>
+                </div>
+                <div v-if="task.totalCellCount > 0" class="detail-topbar-stat">
+                    <span class="detail-topbar-stat-val">{{ getAdoptionRate() }}%</span>
+                    <span class="detail-topbar-stat-lbl">采纳率</span>
+                </div>
                 <button class="btn btn-danger btn-sm" @click="deleteTask" style="margin-left: var(--space-4);">&#128465;</button>
             </div>
+        </div>
+
+        <!-- 重新生成列详情 -->
+        <div v-if="task && task.regeneratedColumns && task.hasRegeneration" class="stats-panel" style="margin-top: var(--space-3);">
+            <span class="stats-label">重新生成列:</span>
+            <span class="stats-item">{{ formatRegeneratedColumns(task.regeneratedColumns) }}</span>
         </div>
 
         <!-- Loading -->
@@ -400,6 +418,28 @@ const TaskDetailPage = {
                 return timeStr.replace('T', ' ').substring(0, 19);
             }
             return String(timeStr);
+        },
+        getAdoptionRate() {
+            if (!this.task || !this.task.totalCellCount || this.task.totalCellCount === 0) return '—';
+            const edited = this.task.editedCellCount || 0;
+            const regen = this.task.regeneratedCellCount || 0;
+            const rate = (this.task.totalCellCount - edited - regen) / this.task.totalCellCount * 100;
+            return Math.max(0, rate).toFixed(1);
+        },
+        formatRegeneratedColumns(regenColsStr) {
+            if (!regenColsStr) return '';
+            try {
+                const data = typeof regenColsStr === 'string' ? JSON.parse(regenColsStr) : regenColsStr;
+                const parts = [];
+                for (const [table, cols] of Object.entries(data)) {
+                    for (const col of cols) {
+                        parts.push(table + '.' + col);
+                    }
+                }
+                return parts.join(', ') || '—';
+            } catch (e) {
+                return String(regenColsStr);
+            }
         },
     },
 };

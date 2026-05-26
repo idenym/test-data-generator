@@ -43,6 +43,19 @@ public class GenerationTask {
     @Column(columnDefinition = "MEDIUMTEXT")
     private String generatedDataSnapshot;
 
+    private Boolean hasManualEdits = false;
+
+    private Boolean hasRegeneration = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String regeneratedColumns;
+
+    private Integer editedCellCount = 0;
+
+    private Integer regeneratedCellCount = 0;
+
+    private Integer totalCellCount = 0;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
@@ -72,4 +85,16 @@ public class GenerationTask {
     public void setAnalysisSnapshot(String analysisSnapshot) { this.analysisSnapshot = analysisSnapshot; }
     public String getGeneratedDataSnapshot() { return generatedDataSnapshot; }
     public void setGeneratedDataSnapshot(String generatedDataSnapshot) { this.generatedDataSnapshot = generatedDataSnapshot; }
+    public Boolean getHasManualEdits() { return hasManualEdits; }
+    public void setHasManualEdits(Boolean hasManualEdits) { this.hasManualEdits = hasManualEdits; }
+    public Boolean getHasRegeneration() { return hasRegeneration; }
+    public void setHasRegeneration(Boolean hasRegeneration) { this.hasRegeneration = hasRegeneration; }
+    public String getRegeneratedColumns() { return regeneratedColumns; }
+    public void setRegeneratedColumns(String regeneratedColumns) { this.regeneratedColumns = regeneratedColumns; }
+    public Integer getEditedCellCount() { return editedCellCount; }
+    public void setEditedCellCount(Integer editedCellCount) { this.editedCellCount = editedCellCount; }
+    public Integer getRegeneratedCellCount() { return regeneratedCellCount; }
+    public void setRegeneratedCellCount(Integer regeneratedCellCount) { this.regeneratedCellCount = regeneratedCellCount; }
+    public Integer getTotalCellCount() { return totalCellCount; }
+    public void setTotalCellCount(Integer totalCellCount) { this.totalCellCount = totalCellCount; }
 }

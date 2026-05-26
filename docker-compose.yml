@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: testdatagen-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-testdatagen}
+      MYSQL_USER: ${MYSQL_USER:-testdatagen}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max-connections=200
+      --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: testdatagen-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-testdatagen}
+      - MYSQL_USER=${MYSQL_USER:-testdatagen}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.deepseek.com}
+      - OPENAI_MODEL=${OPENAI_MODEL:-deepseek-v4-pro}
+      - MIMO_BASE_URL=${MIMO_BASE_URL:-https://token-plan-cn.xiaomimimo.com/}
+      - MIMO_API_KEY=${MIMO_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - KB_ENABLED=${KB_ENABLED:-false}
+      - KB_BASE_URL=${KB_BASE_URL:-http://localhost:9090}
+      - KB_API_KEY=${KB_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m}
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: testdatagen-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d
+      - ./deploy/nginx/ssl:/etc/nginx/ssl
+      - nginx_logs:/var/log/nginx
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+  nginx_logs:
+
+networks:
+  app-network:
+    driver: bridge

@@ -38,4 +38,9 @@ public class HistoryController {
         historyService.delete(id);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/statistics")
+    public Map<String, Object> getStatistics() {
+        return historyService.getStatistics();
+    }
 }

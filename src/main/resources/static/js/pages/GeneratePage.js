@@ -92,6 +92,16 @@ const GeneratePage = {
                 </div>
             </div>
 
+            <!-- 历史统计面板 -->
+            <div v-if="statistics && statistics.totalTasks > 0" class="stats-panel">
+                <span class="stats-label">历史统计</span>
+                <span class="stats-item">采纳率: <strong>{{ (statistics.adoptionRate * 100).toFixed(1) }}%</strong></span>
+                <span class="stats-divider">|</span>
+                <span class="stats-item">重新生成率: <strong>{{ (statistics.regenerationRate * 100).toFixed(1) }}%</strong></span>
+                <span class="stats-divider">|</span>
+                <span class="stats-item">共 {{ statistics.totalTasks }} 次任务</span>
+            </div>
+
             <!-- 生成中 Loading -->
             <div v-if="previewing" class="card">
                 <div class="loading-container">
@@ -313,6 +323,11 @@ const GeneratePage = {
             editedCells: {},
             editingCell: null,
             editingValue: '',
+            // 重新生成追踪（与手动编辑分离）
+            regeneratedColumnsMap: {},
+            regeneratedCellKeys: {},
+            // 统计面板
+            statistics: null,
             // 列操作
             columnMenuVisible: null,
             selectedColumns: {},
@@ -345,6 +360,7 @@ const GeneratePage = {
     },
     mounted() {
         this.loadModels();
+        this.loadStatistics();
         document.addEventListener('click', this.handleGlobalClick);
     },
     beforeUnmount() {
@@ -416,6 +432,11 @@ const GeneratePage = {
             this.executing = true;
             this.executeResult = null;
             try {
+                // 计算编辑/重生成元数据
+                const regenKeys = Object.keys(this.regeneratedCellKeys);
+                const pureEditKeys = Object.keys(this.editedCells).filter(k => !this.regeneratedCellKeys[k]);
+                const totalCellCount = this.computeTotalCellCount();
+
                 const writeRequest = {
                     connectionId: this.connectionId,
                     sql: this.sql || this.currentSql || '',
@@ -423,10 +444,17 @@ const GeneratePage = {
                     generationOrder: this.previewResult.generationOrder,
                     fieldRules: this.fieldRules || [],
                     sqlScriptId: this.sqlScriptId,
+                    hasManualEdits: pureEditKeys.length > 0,
+                    hasRegeneration: Object.keys(this.regeneratedColumnsMap).length > 0,
+                    regeneratedColumns: this.regeneratedColumnsMap,
+                    editedCellCount: pureEditKeys.length,
+                    regeneratedCellCount: regenKeys.length,
+                    totalCellCount: totalCellCount,
                 };
                 this.executeResult = await API.writePreviewData(writeRequest);
                 if (this.executeResult.status === 'SUCCESS') {
                     Toast.success('数据写入成功!');
+                    this.loadStatistics();
                 } else {
                     Toast.error('写入失败: ' + (this.executeResult.errorMessage || '未知错误'));
                 }
@@ -444,6 +472,8 @@ const GeneratePage = {
             this.editingValue = '';
             this.selectedColumns = {};
             this.showDiff = false;
+            this.regeneratedColumnsMap = {};
+            this.regeneratedCellKeys = {};
         },
 
         isColumnEditable(table, col) {
@@ -497,7 +527,10 @@ const GeneratePage = {
             const newVal = this.editingValue;
             if (String(oldVal ?? '') !== String(newVal)) {
                 this.previewResult.tableData[table][row][col] = newVal;
-                this.editedCells[`${table}.${row}.${col}`] = true;
+                const key = `${table}.${row}.${col}`;
+                this.editedCells[key] = true;
+                // 手动编辑优先：从重生成追踪中移除
+                delete this.regeneratedCellKeys[key];
             }
             this.editingCell = null;
             this.editingValue = '';
@@ -580,17 +613,28 @@ const GeneratePage = {
                 });
                 // 合并新列数据到预览结果
                 if (resp.columnData) {
+                    // 追踪重新生成的列
+                    if (!this.regeneratedColumnsMap[table]) {
+                        this.regeneratedColumnsMap[table] = [];
+                    }
                     for (const [col, values] of Object.entries(resp.columnData)) {
+                        if (!this.regeneratedColumnsMap[table].includes(col)) {
+                            this.regeneratedColumnsMap[table].push(col);
+                        }
                         values.forEach((val, idx) => {
                             if (idx < this.previewResult.tableData[table].length) {
                                 this.previewResult.tableData[table][idx][col] = val;
-                                this.editedCells[`${table}.${idx}.${col}`] = true;
+                                const key = `${table}.${idx}.${col}`;
+                                this.editedCells[key] = true;
+                                this.regeneratedCellKeys[key] = true;
                             }
                         });
                     }
                     // 强制触发响应式更新
                     this.previewResult = { ...this.previewResult };
                     this.editedCells = { ...this.editedCells };
+                    this.regeneratedCellKeys = { ...this.regeneratedCellKeys };
+                    this.regeneratedColumnsMap = { ...this.regeneratedColumnsMap };
                 }
                 if (resp.warnings && resp.warnings.length > 0) {
                     resp.warnings.forEach(w => Toast.warning(w));
@@ -634,9 +678,19 @@ const GeneratePage = {
             for (let i = 0; i < rows.length && i < originalRows.length; i++) {
                 rows[i][col] = originalRows[i][col];
                 delete this.editedCells[`${table}.${i}.${col}`];
+                delete this.regeneratedCellKeys[`${table}.${i}.${col}`];
+            }
+            // 从 regeneratedColumnsMap 中移除该列
+            if (this.regeneratedColumnsMap[table]) {
+                this.regeneratedColumnsMap[table] = this.regeneratedColumnsMap[table].filter(c => c !== col);
+                if (this.regeneratedColumnsMap[table].length === 0) {
+                    delete this.regeneratedColumnsMap[table];
+                }
+                this.regeneratedColumnsMap = { ...this.regeneratedColumnsMap };
             }
             this.previewResult = { ...this.previewResult };
             this.editedCells = { ...this.editedCells };
+            this.regeneratedCellKeys = { ...this.regeneratedCellKeys };
             this.columnMenuVisible = null;
             Toast.success('已恢复列 ' + col + ' 的原始数据');
         },
@@ -644,7 +698,7 @@ const GeneratePage = {
         revertAll(tableName) {
             if (!this.originalData || !this.originalData[tableName]) return;
             this.previewResult.tableData[tableName] = JSON.parse(JSON.stringify(this.originalData[tableName]));
-            // 清除该表的所有编辑标记
+            // 清除该表的所有编辑标记和重生成追踪
             const newEdited = {};
             for (const key of Object.keys(this.editedCells)) {
                 if (!key.startsWith(tableName + '.')) {
@@ -652,6 +706,15 @@ const GeneratePage = {
                 }
             }
             this.editedCells = newEdited;
+            const newRegenKeys = {};
+            for (const key of Object.keys(this.regeneratedCellKeys)) {
+                if (!key.startsWith(tableName + '.')) {
+                    newRegenKeys[key] = true;
+                }
+            }
+            this.regeneratedCellKeys = newRegenKeys;
+            delete this.regeneratedColumnsMap[tableName];
+            this.regeneratedColumnsMap = { ...this.regeneratedColumnsMap };
             this.previewResult = { ...this.previewResult };
             Toast.success('已恢复全部原始数据');
         },
@@ -749,6 +812,27 @@ const GeneratePage = {
                 ruleConfig: ruleConfig,
                 description: form.ruleType === 'LLM_DESCRIPTION' ? form.llmDesc : ''
             };
+        },
+
+        computeTotalCellCount() {
+            if (!this.previewResult || !this.previewResult.tableData) return 0;
+            let total = 0;
+            for (const tableName of Object.keys(this.previewResult.tableData)) {
+                const rows = this.previewResult.tableData[tableName];
+                if (!rows || rows.length === 0) continue;
+                const cols = Object.keys(rows[0]);
+                const editableCols = cols.filter(col => this.isColumnEditable(tableName, col));
+                total += rows.length * editableCols.length;
+            }
+            return total;
+        },
+
+        async loadStatistics() {
+            try {
+                this.statistics = await API.getAdoptionStatistics();
+            } catch (e) {
+                console.error('加载统计数据失败:', e);
+            }
         },
     },
 };

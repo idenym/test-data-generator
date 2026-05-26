@@ -60,4 +60,24 @@ public class HistoryService {
     public void delete(Long id) {
         taskRepository.deleteById(id);
     }
+
+    public Map<String, Object> getStatistics() {
+        Object[] row = taskRepository.findAggregateStatistics();
+        long totalCells = ((Number) row[0]).longValue();
+        long editedCells = ((Number) row[1]).longValue();
+        long regenCells = ((Number) row[2]).longValue();
+        long taskCount = ((Number) row[3]).longValue();
+
+        double adoptionRate = totalCells > 0 ? (double) (totalCells - editedCells - regenCells) / totalCells : 1.0;
+        double regenerationRate = totalCells > 0 ? (double) regenCells / totalCells : 0.0;
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalTasks", taskCount);
+        stats.put("totalCells", totalCells);
+        stats.put("editedCells", editedCells);
+        stats.put("regeneratedCells", regenCells);
+        stats.put("adoptionRate", Math.round(adoptionRate * 1000.0) / 1000.0);
+        stats.put("regenerationRate", Math.round(regenerationRate * 1000.0) / 1000.0);
+        return stats;
+    }
 }
