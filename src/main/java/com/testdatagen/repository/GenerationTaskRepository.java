@@ -16,5 +16,5 @@ public interface GenerationTaskRepository extends JpaRepository<GenerationTask, 
            "COUNT(t) " +
            "FROM GenerationTask t " +
            "WHERE t.status = 'SUCCESS' AND t.totalCellCount > 0")
-    Object[] findAggregateStatistics();
+    List<Object[]> findAggregateStatistics();
 }
