@@ -2,6 +2,7 @@ package com.testdatagen.service;
 
 import com.testdatagen.model.entity.SqlScript;
 import com.testdatagen.repository.SqlScriptRepository;
+import com.testdatagen.security.CurrentUserContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,7 +17,14 @@ public class SqlScriptService {
     }
 
     public List<SqlScript> listAll() {
-        return sqlScriptRepository.findAllByOrderByUpdatedAtDesc();
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            return sqlScriptRepository.findAllByOrderByUpdatedAtDesc();
+        }
+        if (CurrentUserContext.isAdmin()) {
+            return sqlScriptRepository.findAllByOrderByUpdatedAtDesc();
+        }
+        return sqlScriptRepository.findAllByUserIdOrUserIdIsNullOrderByUpdatedAtDesc(userId);
     }
 
     public SqlScript getById(Long id) {
@@ -30,6 +38,7 @@ public class SqlScriptService {
         script.setSqlContent(sqlContent);
         script.setDescription(description);
         script.setConnectionId(connectionId);
+        script.setUserId(CurrentUserContext.getUserId());
         return sqlScriptRepository.save(script);
     }
 

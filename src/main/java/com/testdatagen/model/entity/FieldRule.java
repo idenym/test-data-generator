@@ -38,6 +38,9 @@ public class FieldRule {
     @Column(length = 500)
     private String description;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -64,6 +67,8 @@ public class FieldRule {
     public void setPriority(Integer priority) { this.priority = priority; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

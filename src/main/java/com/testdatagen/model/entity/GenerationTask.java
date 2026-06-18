@@ -76,6 +76,9 @@ public class GenerationTask {
     @Column(name = "preview_task_id", length = 16)
     private String previewTaskId;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
@@ -127,4 +130,6 @@ public class GenerationTask {
     public void setCurrentTable(String currentTable) { this.currentTable = currentTable; }
     public String getPreviewTaskId() { return previewTaskId; }
     public void setPreviewTaskId(String previewTaskId) { this.previewTaskId = previewTaskId; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 }

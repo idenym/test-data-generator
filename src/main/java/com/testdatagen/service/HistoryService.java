@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.testdatagen.model.entity.GenerationTask;
 import com.testdatagen.repository.GenerationTaskRepository;
+import com.testdatagen.security.CurrentUserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,14 @@ public class HistoryService {
     }
 
     public List<GenerationTask> listAll() {
-        return taskRepository.findAllByOrderByStartedAtDesc();
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            return taskRepository.findAllByOrderByStartedAtDesc();
+        }
+        if (CurrentUserContext.isAdmin()) {
+            return taskRepository.findAllByOrderByStartedAtDesc();
+        }
+        return taskRepository.findAllByUserIdOrUserIdIsNullOrderByStartedAtDesc(userId);
     }
 
     public GenerationTask getById(Long id) {
@@ -67,7 +75,13 @@ public class HistoryService {
 
     public Map<String, Object> getStatistics() {
         try {
-            List<Object[]> rows = taskRepository.findAggregateStatistics();
+            List<Object[]> rows;
+            Long userId = CurrentUserContext.getUserId();
+            if (userId == null || CurrentUserContext.isAdmin()) {
+                rows = taskRepository.findAggregateStatistics();
+            } else {
+                rows = taskRepository.findAggregateStatisticsByUserId(userId);
+            }
             if (rows == null || rows.isEmpty()) {
                 log.warn("findAggregateStatistics returned empty");
                 return emptyStatistics();

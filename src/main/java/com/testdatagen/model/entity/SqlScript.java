@@ -23,6 +23,9 @@ public class SqlScript {
     @Column
     private Long connectionId;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -50,6 +53,8 @@ public class SqlScript {
     public void setDescription(String description) { this.description = description; }
     public Long getConnectionId() { return connectionId; }
     public void setConnectionId(Long connectionId) { this.connectionId = connectionId; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

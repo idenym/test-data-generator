@@ -12,4 +12,8 @@ public interface SqlScriptRepository extends JpaRepository<SqlScript, Long> {
     List<SqlScript> findAllByOrderByUpdatedAtDesc();
 
     List<SqlScript> findByConnectionIdOrderByUpdatedAtDesc(Long connectionId);
+
+    List<SqlScript> findAllByUserIdOrderByUpdatedAtDesc(Long userId);
+
+    List<SqlScript> findAllByUserIdOrUserIdIsNullOrderByUpdatedAtDesc(Long userId);
 }

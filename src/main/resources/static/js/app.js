@@ -5,6 +5,8 @@ const app = createApp({
         return {
             // 视图路由: 'home' | 'flow' | 'detail'
             view: 'home',
+            // 当前登录用户
+            currentUser: null,
             // Flow 状态
             currentStep: 0,
             selectedConnectionId: null,
@@ -82,6 +84,26 @@ const app = createApp({
         onSqlScriptSelected(scriptId) {
             this.currentSqlScriptId = scriptId;
         },
+        // 退出登录
+        logout() {
+            API.logout();
+        }
+    },
+    mounted() {
+        // 检查登录状态
+        if (!API.isLoggedIn()) {
+            window.location.href = '/login.html';
+            return;
+        }
+        // 加载用户信息
+        this.currentUser = API.getCurrentUser();
+        // 尝试从服务端刷新用户信息
+        API.getMe().then(user => {
+            this.currentUser = user;
+            localStorage.setItem('user', JSON.stringify(user));
+        }).catch(() => {
+            // 如果获取失败，使用缓存的用户信息
+        });
     },
 });
 

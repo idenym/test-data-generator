@@ -20,6 +20,9 @@ spring:
       path: /h2-console
 
 app:
+  jwt:
+    secret: ${JWT_SECRET:TestDataGen-Secret-Key-2024-For-JWT-Token-Signing-256bit}
+    expiration: 86400000  # 24小时
   openai:
     api-key: ${OPENAI_API_KEY:tp-cisncg8bwcp4be3o8gt7jp3qkbcellf96yu914r0bngqpkhm}
     base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}

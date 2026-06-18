@@ -11,6 +11,7 @@ import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.entity.GenerationTask;
 import com.testdatagen.model.enums.TaskStatus;
 import com.testdatagen.repository.GenerationTaskRepository;
+import com.testdatagen.security.CurrentUserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -65,6 +66,7 @@ public class PreviewTaskRegistry {
         dbTask.setTaskType("PREVIEW");
         dbTask.setTotalTables(totalTables);
         dbTask.setPreviewTaskId(previewTaskId);
+        dbTask.setUserId(CurrentUserContext.getUserId());
         if (request.getFieldRules() != null && !request.getFieldRules().isEmpty()) {
             dbTask.setRulesSnapshot(JSON.toJSONString(request.getFieldRules()));
         }

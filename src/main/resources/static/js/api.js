@@ -1,6 +1,39 @@
 const API = {
     baseURL: '/api/v1',
 
+    // 检查是否已登录
+    isLoggedIn() {
+        return !!localStorage.getItem('token');
+    },
+
+    // 获取当前 token
+    getToken() {
+        return localStorage.getItem('token');
+    },
+
+    // 设置 token
+    setToken(token) {
+        localStorage.setItem('token', token);
+    },
+
+    // 清除登录信息
+    clearAuth() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+    },
+
+    // 获取当前用户信息（从 localStorage 缓存）
+    getCurrentUser() {
+        const userStr = localStorage.getItem('user');
+        return userStr ? JSON.parse(userStr) : null;
+    },
+
+    // 跳转到登录页
+    redirectToLogin() {
+        this.clearAuth();
+        window.location.href = '/login.html';
+    },
+
     async request(method, path, data) {
         try {
             const config = {
@@ -10,12 +43,32 @@ const API = {
             if (data && (method === 'post' || method === 'put')) {
                 config.data = data;
             }
+            // 自动附加 Authorization header
+            const token = this.getToken();
+            if (token) {
+                config.headers = config.headers || {};
+                config.headers['Authorization'] = 'Bearer ' + token;
+            }
             const response = await axios(config);
             return response.data;
         } catch (error) {
+            // 401 响应时跳转登录页
+            if (error.response && error.response.status === 401) {
+                this.redirectToLogin();
+                throw new Error('登录已过期，请重新登录');
+            }
             const msg = error.response?.data?.message || error.message || '请求失败';
             throw new Error(msg);
         }
+    },
+
+    // Auth APIs
+    login(data) { return this.request('post', '/auth/login', data); },
+    register(data) { return this.request('post', '/auth/register', data); },
+    getMe() { return this.request('get', '/auth/me'); },
+    logout() {
+        this.clearAuth();
+        this.redirectToLogin();
     },
 
     // Connection APIs

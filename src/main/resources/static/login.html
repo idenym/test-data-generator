@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TestDataGen — 登录</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/login.css?v=20260602t2">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <div class="login-container">
+            <div class="login-card">
+                <!-- Logo -->
+                <div class="login-header">
+                    <div class="logo-mark">⚡</div>
+                    <h1 class="logo-text">TestDataGen</h1>
+                    <p class="logo-subtitle">测试数据构造工具</p>
+                </div>
+
+                <!-- Tab 切换 -->
+                <div class="tab-bar">
+                    <button class="tab-btn" :class="{ active: activeTab === 'login' }" @click="activeTab = 'login'">登录</button>
+                    <button class="tab-btn" :class="{ active: activeTab === 'register' }" @click="activeTab = 'register'">注册</button>
+                </div>
+
+                <!-- 登录表单 -->
+                <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="auth-form">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" v-model="loginForm.username" placeholder="请输入用户名" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" v-model="loginForm.password" placeholder="请输入密码" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" :disabled="loading">
+                        {{ loading ? '登录中...' : '登录' }}
+                    </button>
+                    <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+                </form>
+
+                <!-- 注册表单 -->
+                <form v-if="activeTab === 'register'" @submit.prevent="handleRegister" class="auth-form">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" v-model="registerForm.username" placeholder="2-50 个字符" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label>昵称 <span class="optional">(可选)</span></label>
+                        <input type="text" v-model="registerForm.nickname" placeholder="显示名称">
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" v-model="registerForm.password" placeholder="至少 6 位" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>确认密码</label>
+                        <input type="password" v-model="registerForm.confirmPassword" placeholder="再次输入密码" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" :disabled="loading">
+                        {{ loading ? '注册中...' : '注册' }}
+                    </button>
+                    <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+                    <p v-if="successMsg" class="success-msg">{{ successMsg }}</p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3.4.15/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios@1.6.5/dist/axios.min.js"></script>
+    <script src="/js/auth.js?v=20260602t2"></script>
+</body>
+</html>

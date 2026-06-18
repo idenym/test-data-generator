@@ -13,6 +13,7 @@ import com.testdatagen.model.dto.TableMetadata;
 import com.testdatagen.model.entity.GenerationTask;
 import com.testdatagen.model.enums.TaskStatus;
 import com.testdatagen.repository.GenerationTaskRepository;
+import com.testdatagen.security.CurrentUserContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -122,6 +123,7 @@ public class DataGeneratorService {
         task.setInputSql(request.getSql());
         task.setRowCount(request.getRowCount());
         task.setStatus(TaskStatus.RUNNING);
+        task.setUserId(CurrentUserContext.getUserId());
         // 保存规则快照
         if (request.getFieldRules() != null && !request.getFieldRules().isEmpty()) {
             task.setRulesSnapshot(JSON.toJSONString(request.getFieldRules()));
@@ -170,6 +172,7 @@ public class DataGeneratorService {
         task.setConnectionId(connectionId);
         task.setInputSql(sql);
         task.setStatus(TaskStatus.RUNNING);
+        task.setUserId(CurrentUserContext.getUserId());
         // 保存编辑/重生成元数据
         task.setHasManualEdits(hasManualEdits != null ? hasManualEdits : false);
         task.setHasRegeneration(hasRegeneration != null ? hasRegeneration : false);

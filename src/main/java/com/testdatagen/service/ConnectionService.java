@@ -4,6 +4,7 @@ import com.testdatagen.model.dto.ConnectionRequest;
 import com.testdatagen.model.dto.ConnectionTestResult;
 import com.testdatagen.model.entity.ConnectionConfig;
 import com.testdatagen.repository.ConnectionConfigRepository;
+import com.testdatagen.security.CurrentUserContext;
 import com.testdatagen.util.EncryptionUtil;
 import com.testdatagen.util.JdbcConnectionFactory;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,14 @@ public class ConnectionService {
     }
 
     public List<ConnectionConfig> listAll() {
-        return repository.findAll();
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            return repository.findAll();
+        }
+        if (CurrentUserContext.isAdmin()) {
+            return repository.findAll();
+        }
+        return repository.findAllByUserIdOrUserIdIsNull(userId);
     }
 
     public ConnectionConfig getById(Long id) {
@@ -45,6 +53,7 @@ public class ConnectionService {
         config.setEncryptedPassword(encryptionUtil.encrypt(request.getPassword()));
         config.setDatabaseName(request.getDatabaseName());
         config.setExtraParams(request.getExtraParams());
+        config.setUserId(CurrentUserContext.getUserId());
         return repository.save(config);
     }
 

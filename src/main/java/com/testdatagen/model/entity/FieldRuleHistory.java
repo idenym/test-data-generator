@@ -45,6 +45,9 @@ public class FieldRuleHistory {
     @Column(nullable = false)
     private LocalDateTime lastUsedAt;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -71,4 +74,6 @@ public class FieldRuleHistory {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastUsedAt() { return lastUsedAt; }
     public void setLastUsedAt(LocalDateTime lastUsedAt) { this.lastUsedAt = lastUsedAt; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 }

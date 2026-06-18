@@ -12,4 +12,8 @@ public interface FieldRuleRepository extends JpaRepository<FieldRule, Long> {
     List<FieldRule> findByRuleSetIdIsNullOrderByPriorityDesc();
 
     List<FieldRule> findAllByOrderByPriorityDesc();
+
+    List<FieldRule> findAllByUserIdOrderByPriorityDesc(Long userId);
+
+    List<FieldRule> findAllByUserIdOrUserIdIsNullOrderByPriorityDesc(Long userId);
 }

@@ -8,6 +8,7 @@ import com.testdatagen.model.enums.RuleType;
 import com.testdatagen.repository.FieldRuleHistoryRepository;
 import com.testdatagen.repository.FieldRuleRepository;
 import com.testdatagen.repository.RuleSetRepository;
+import com.testdatagen.security.CurrentUserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,10 +34,20 @@ public class RuleService {
     }
 
     public List<FieldRule> listAllRules() {
-        return fieldRuleRepository.findAllByOrderByPriorityDesc();
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            return fieldRuleRepository.findAllByOrderByPriorityDesc();
+        }
+        if (CurrentUserContext.isAdmin()) {
+            return fieldRuleRepository.findAllByOrderByPriorityDesc();
+        }
+        return fieldRuleRepository.findAllByUserIdOrUserIdIsNullOrderByPriorityDesc(userId);
     }
 
     public FieldRule saveRule(FieldRule rule) {
+        if (rule.getUserId() == null) {
+            rule.setUserId(CurrentUserContext.getUserId());
+        }
         return fieldRuleRepository.save(rule);
     }
 
@@ -59,10 +70,20 @@ public class RuleService {
     }
 
     public List<RuleSet> listRuleSets() {
-        return ruleSetRepository.findAll();
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            return ruleSetRepository.findAll();
+        }
+        if (CurrentUserContext.isAdmin()) {
+            return ruleSetRepository.findAll();
+        }
+        return ruleSetRepository.findAllByUserIdOrUserIdIsNull(userId);
     }
 
     public RuleSet saveRuleSet(RuleSet ruleSet) {
+        if (ruleSet.getUserId() == null) {
+            ruleSet.setUserId(CurrentUserContext.getUserId());
+        }
         return ruleSetRepository.save(ruleSet);
     }
 
