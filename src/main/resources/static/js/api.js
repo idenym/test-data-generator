@@ -54,6 +54,10 @@ const API = {
     // Data Generation
     getAvailableModels() { return this.request('get', '/generate/models'); },
     previewData(data) { return this.request('post', '/generate/preview', data); },
+    submitPreview(data) { return this.request('post', '/generate/preview/submit', data); },
+    getPreviewStatus(taskId) { return this.request('get', `/generate/preview/status/${taskId}`); },
+    getPreviewProgressByDbId(dbTaskId) { return this.request('get', `/generate/preview/progress/${dbTaskId}`); },
+    cancelPreview(taskId) { return this.request('post', `/generate/preview/cancel/${taskId}`); },
     executeGeneration(data) { return this.request('post', '/generate/execute', data); },
     writePreviewData(data) { return this.request('post', '/generate/write', data); },
     regenerateColumns(data) { return this.request('post', '/generate/regenerate-columns', data); },

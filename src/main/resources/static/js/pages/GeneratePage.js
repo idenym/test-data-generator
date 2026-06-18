@@ -1,6 +1,6 @@
 const GeneratePage = {
     props: ['connectionId', 'analysisResult', 'fieldRules', 'currentSql', 'sqlScriptId'],
-    emits: ['prev', 'done'],
+    emits: ['prev', 'done', 'view-detail'],
     template: `
     <div>
         <div class="page-header">
@@ -106,9 +106,23 @@ const GeneratePage = {
             <div v-if="previewing" class="card">
                 <div class="loading-container">
                     <div class="loading-spinner"></div>
-                    <div class="loading-text">正在生成测试数据，请稍候...</div>
+                    <div class="loading-text">
+                        <template v-if="previewProgress && previewProgress.currentTable">
+                            正在生成: {{ previewProgress.currentTable }}
+                            ({{ previewProgress.completedTables }}/{{ previewProgress.totalTables }})
+                        </template>
+                        <template v-else>
+                            正在提交预览任务...
+                        </template>
+                    </div>
                     <div class="loading-progress">
-                        <div class="loading-progress-bar"></div>
+                        <div class="loading-progress-bar" :style="{ width: (previewProgress ? previewProgress.percentage : 0) + '%' }"></div>
+                    </div>
+                    <div style="margin-top: var(--space-3); text-align: center;">
+                        <button class="btn btn-sm btn-ghost" @click="cancelPreview"
+                            style="color: var(--text-muted);">
+                            取消生成
+                        </button>
                     </div>
                     <div style="margin-top: var(--space-4);">
                         <div class="skeleton-row">
@@ -299,10 +313,17 @@ const GeneratePage = {
             <!-- Step Navigation -->
             <div class="step-navigation">
                 <button class="btn btn-ghost" @click="$emit('prev')">← 上一步</button>
-                <button v-if="executeResult && executeResult.status === 'SUCCESS'" class="btn btn-primary btn-lg" @click="$emit('done')">
-                    完成，返回首页
-                </button>
-                <div v-else></div>
+                <div style="display: flex; gap: var(--space-3); align-items: center;">
+                    <button v-if="previewDbTaskId" class="btn btn-ghost" @click="$emit('view-detail', previewDbTaskId)" style="font-size: var(--text-sm);">
+                        查看任务详情 →
+                    </button>
+                    <button v-if="executeResult && executeResult.status === 'SUCCESS'" class="btn btn-primary btn-lg" @click="$emit('done')">
+                        完成，返回首页
+                    </button>
+                    <button v-else-if="previewResult && !previewing" class="btn btn-primary btn-lg" @click="$emit('done')">
+                        完成，返回首页
+                    </button>
+                </div>
             </div>
         </template>
     </div>
@@ -315,6 +336,11 @@ const GeneratePage = {
             executing: false,
             previewResult: null,
             executeResult: null,
+            // 异步预览状态
+            previewTaskId: null,
+            previewDbTaskId: null,
+            previewProgress: null,
+            previewPollingTimer: null,
             availableModels: [],
             selectedModels: [],
             loadingModels: false,
@@ -365,6 +391,10 @@ const GeneratePage = {
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleGlobalClick);
+        if (this.previewPollingTimer) {
+            clearTimeout(this.previewPollingTimer);
+            this.previewPollingTimer = null;
+        }
     },
     methods: {
         handleGlobalClick() {
@@ -407,6 +437,9 @@ const GeneratePage = {
             this.previewing = true;
             this.previewResult = null;
             this.executeResult = null;
+            this.previewProgress = null;
+            this.previewTaskId = null;
+            this.previewDbTaskId = null;
             this.resetEditState();
             try {
                 const request = this.buildRequest();
@@ -415,14 +448,62 @@ const GeneratePage = {
                     this.previewing = false;
                     return;
                 }
-                this.previewResult = await API.previewData(request);
-                // 保存原始数据副本（用于对比和恢复）
-                this.originalData = JSON.parse(JSON.stringify(this.previewResult.tableData));
-                Toast.success('数据生成完成，请预览确认');
+                // 提交异步任务
+                const submitResp = await API.submitPreview(request);
+                this.previewTaskId = submitResp.taskId;
+                this.previewDbTaskId = submitResp.dbTaskId;
+                // 开始轮询
+                this.pollPreviewStatus();
             } catch (e) {
-                Toast.error('生成失败: ' + e.message);
+                Toast.error('提交预览任务失败: ' + e.message);
+                this.previewing = false;
             }
-            this.previewing = false;
+        },
+        pollPreviewStatus() {
+            if (this.previewPollingTimer) {
+                clearTimeout(this.previewPollingTimer);
+            }
+            this.previewPollingTimer = setTimeout(async () => {
+                if (!this.previewTaskId || !this.previewing) return;
+                try {
+                    const status = await API.getPreviewStatus(this.previewTaskId);
+                    this.previewProgress = status.progress;
+                    if (status.status === 'SUCCESS') {
+                        this.previewResult = status.result;
+                        this.originalData = JSON.parse(JSON.stringify(status.result.tableData));
+                        this.previewing = false;
+                        this.previewTaskId = null;
+                        this.previewProgress = null;
+                        Toast.success('数据生成完成，请预览确认');
+                    } else if (status.status === 'FAILED') {
+                        this.previewing = false;
+                        this.previewTaskId = null;
+                        this.previewProgress = null;
+                        Toast.error('生成失败: ' + (status.errorMessage || '未知错误'));
+                    } else if (status.status === 'CANCELLED') {
+                        this.previewing = false;
+                        this.previewTaskId = null;
+                        this.previewProgress = null;
+                        Toast.warning('预览任务已取消');
+                    } else {
+                        // PENDING 或 RUNNING，继续轮询
+                        this.pollPreviewStatus();
+                    }
+                } catch (e) {
+                    this.previewing = false;
+                    this.previewTaskId = null;
+                    this.previewProgress = null;
+                    Toast.error('查询任务状态失败: ' + e.message);
+                }
+            }, 1500);
+        },
+        async cancelPreview() {
+            if (!this.previewTaskId) return;
+            try {
+                await API.cancelPreview(this.previewTaskId);
+            } catch (e) {
+                Toast.error('取消失败: ' + e.message);
+            }
         },
         async executeWrite() {
             if (!this.previewResult) {

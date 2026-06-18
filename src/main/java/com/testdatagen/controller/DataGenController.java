@@ -4,10 +4,12 @@ import com.testdatagen.config.OpenAiConfig.ModelConfig;
 import com.testdatagen.config.OpenAiConfig.OpenAiProperties;
 import com.testdatagen.model.dto.DataGenRequest;
 import com.testdatagen.model.dto.DataPreviewResponse;
+import com.testdatagen.model.dto.PreviewStatusResponse;
 import com.testdatagen.model.dto.RegenerateColumnsRequest;
 import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.entity.GenerationTask;
 import com.testdatagen.service.DataGeneratorService;
+import com.testdatagen.service.PreviewTaskRegistry;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +48,46 @@ public class DataGenController {
     @PostMapping("/preview")
     public DataPreviewResponse preview(@Valid @RequestBody DataGenRequest request) {
         return dataGeneratorService.preview(request);
+    }
+
+    /**
+     * 提交异步预览任务，立即返回 previewTaskId 和 dbTaskId
+     */
+    @PostMapping("/preview/submit")
+    public ResponseEntity<Map<String, Object>> submitPreview(@Valid @RequestBody DataGenRequest request) {
+        PreviewTaskRegistry.SubmitResult result = dataGeneratorService.submitPreview(request);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("taskId", result.getPreviewTaskId());
+        resp.put("dbTaskId", result.getDbTaskId());
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 查询异步预览任务状态和进度（通过 previewTaskId）
+     */
+    @GetMapping("/preview/status/{taskId}")
+    public PreviewStatusResponse getPreviewStatus(@PathVariable String taskId) {
+        return dataGeneratorService.getPreviewStatus(taskId);
+    }
+
+    /**
+     * 通过 DB id 查询任务进度（用于详情页轮询）
+     */
+    @GetMapping("/preview/progress/{dbTaskId}")
+    public PreviewStatusResponse getPreviewProgressByDbId(@PathVariable Long dbTaskId) {
+        return dataGeneratorService.getPreviewStatusByDbId(dbTaskId);
+    }
+
+    /**
+     * 取消异步预览任务
+     */
+    @PostMapping("/preview/cancel/{taskId}")
+    public ResponseEntity<Map<String, Object>> cancelPreview(@PathVariable String taskId) {
+        boolean cancelled = dataGeneratorService.cancelPreview(taskId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("taskId", taskId);
+        result.put("cancelled", cancelled);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/execute")

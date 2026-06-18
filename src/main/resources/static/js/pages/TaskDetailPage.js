@@ -8,9 +8,12 @@ const TaskDetailPage = {
             <div class="detail-topbar-left">
                 <button class="btn btn-ghost btn-sm" @click="$emit('back')">← 返回</button>
                 <h1 class="detail-topbar-title">任务 #{{ taskId }}</h1>
-                <div v-if="task" class="detail-status-badge" :class="badgeClass(task.status)">
-                    <span class="status-dot" :class="statusDotClass(task.status)"></span>
-                    {{ statusLabel(task.status) }}
+                <div v-if="task" style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span v-if="task.taskType" class="tag tag-ghost">{{ taskTypeLabel(task.taskType) }}</span>
+                    <div class="detail-status-badge" :class="badgeClass(task.status)">
+                        <span class="status-dot" :class="statusDotClass(task.status)"></span>
+                        {{ statusLabel(task.status) }}
+                    </div>
                 </div>
             </div>
             <div v-if="task" class="detail-topbar-stats">
@@ -46,6 +49,23 @@ const TaskDetailPage = {
             </div>
         </div>
 
+        <!-- 运行中进度条 -->
+        <div v-if="task && (task.status === 'RUNNING' || task.status === 'PENDING') && liveProgress" class="card" style="margin-top: var(--space-3);">
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
+                <div class="loading-spinner" style="width: 16px; height: 16px;"></div>
+                <span style="font-size: var(--text-sm); color: var(--text-secondary);">
+                    正在处理: {{ liveProgress.currentTable || '准备中...' }}
+                    ({{ liveProgress.completedTables || 0 }}/{{ liveProgress.totalTables || 0 }} 表)
+                </span>
+                <button v-if="task.previewTaskId" class="btn btn-ghost btn-sm" @click="cancelRunningTask" style="color: var(--text-muted);">
+                    取消
+                </button>
+            </div>
+            <div class="loading-progress" style="height: 4px;">
+                <div class="loading-progress-bar" :style="{ width: (liveProgress.percentage || 0) + '%' }"></div>
+            </div>
+        </div>
+
         <!-- 重新生成列详情 -->
         <div v-if="task && task.regeneratedColumns && task.hasRegeneration" class="stats-panel" style="margin-top: var(--space-3);">
             <span class="stats-label">重新生成列:</span>
@@ -76,14 +96,14 @@ const TaskDetailPage = {
                 </button>
                 <button class="detail-tab" :class="{ active: activeTab === 'rules' }"
                         @click="setTab('rules')" role="tab">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y1="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                     造数规则
                     <span class="detail-tab-count" v-if="parsedRules.length > 0">{{ parsedRules.length }}</span>
                 </button>
                 <button class="detail-tab" :class="{ active: activeTab === 'data' }"
                         @click="setTab('data')" role="tab" v-if="task.status === 'SUCCESS'">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    写入数据
+                    生成数据
                     <span class="detail-tab-count" v-if="generatedData && totalDataRows > 0">{{ totalDataRows }}</span>
                 </button>
                 <button class="detail-tab detail-tab-danger" :class="{ active: activeTab === 'error' }"
@@ -168,11 +188,11 @@ const TaskDetailPage = {
                 </div>
             </div>
 
-            <!-- 写入数据 Tab -->
+            <!-- 生成数据 Tab -->
             <div v-if="activeTab === 'data'" class="detail-tab-pane">
                 <div class="detail-tab-pane-title">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    写入数据
+                    生成数据
                     <span class="tag tag-ghost" style="margin-left:auto;" v-if="generatedData && totalDataRows > 0">{{ totalDataRows }} 行 / {{ generatedDataOrder.length }} 表</span>
                 </div>
                 <div v-if="generatedDataLoading" class="loading-container" style="padding: var(--space-8);">
@@ -242,6 +262,8 @@ const TaskDetailPage = {
             activeTab: 'schema',
             generatedData: null,
             generatedDataLoading: false,
+            liveProgress: null,
+            progressTimer: null,
         };
     },
     computed: {
@@ -287,6 +309,9 @@ const TaskDetailPage = {
             Object.values(this.generatedData.tableData).forEach(rows => { total += rows.length; });
             return total;
         },
+        isRunning() {
+            return this.task && (this.task.status === 'RUNNING' || this.task.status === 'PENDING');
+        },
     },
     watch: {
         taskId: {
@@ -296,6 +321,20 @@ const TaskDetailPage = {
             },
             immediate: true,
         },
+        isRunning(val) {
+            if (val) {
+                this.startProgressPolling();
+            } else {
+                this.stopProgressPolling();
+                // 任务完成后，重新加载以获取最终数据
+                if (this.task && this.liveProgress && this.liveProgress._wasRunning) {
+                    this.loadTask();
+                }
+            }
+        },
+    },
+    beforeUnmount() {
+        this.stopProgressPolling();
     },
     methods: {
         async loadTask() {
@@ -310,6 +349,46 @@ const TaskDetailPage = {
             }
             this.loading = false;
         },
+        startProgressPolling() {
+            if (this.progressTimer) return;
+            this.progressTimer = setInterval(async () => {
+                if (!this.task || !this.isRunning) {
+                    this.stopProgressPolling();
+                    return;
+                }
+                try {
+                    // 如果有 previewTaskId，通过内存轮询获取实时进度
+                    if (this.task.previewTaskId) {
+                        const progress = await API.getPreviewProgressByDbId(this.taskId);
+                        if (progress) {
+                            this.liveProgress = progress.progress;
+                            this.liveProgress._wasRunning = true;
+                            if (progress.status === 'SUCCESS' || progress.status === 'FAILED' || progress.status === 'CANCELLED') {
+                                this.stopProgressPolling();
+                                this.loadTask();
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // 轮询失败静默处理
+                }
+            }, 2000);
+        },
+        stopProgressPolling() {
+            if (this.progressTimer) {
+                clearInterval(this.progressTimer);
+                this.progressTimer = null;
+            }
+        },
+        async cancelRunningTask() {
+            if (!this.task || !this.task.previewTaskId) return;
+            try {
+                await API.cancelPreview(this.task.previewTaskId);
+                Toast.success('任务取消请求已发送');
+            } catch (e) {
+                Toast.error('取消失败: ' + e.message);
+            }
+        },
         restoreActiveTab() {
             try {
                 const saved = sessionStorage.getItem(this.sessionTabKey);
@@ -320,7 +399,6 @@ const TaskDetailPage = {
             }
         },
         adjustActiveTabIfNeeded() {
-            // 如果保存的 Tab 当前不可用，回退到 schema
             if (this.activeTab === 'sql' && !this.task.inputSql) this.setTab('schema');
             else if (this.activeTab === 'error' && !this.task.errorMessage) this.setTab('schema');
             else if (this.activeTab === 'data' && this.task.status !== 'SUCCESS') this.setTab('schema');
@@ -375,6 +453,7 @@ const TaskDetailPage = {
             switch (status) {
                 case 'SUCCESS': return 'badge-success';
                 case 'FAILED': return 'badge-failed';
+                case 'CANCELLED': return 'badge-muted';
                 case 'RUNNING': return 'badge-running';
                 default: return 'badge-running';
             }
@@ -383,17 +462,26 @@ const TaskDetailPage = {
             switch (status) {
                 case 'SUCCESS': return 'status-success';
                 case 'FAILED': return 'status-danger';
+                case 'CANCELLED': return 'status-muted';
                 case 'RUNNING': return 'status-warning';
                 default: return 'status-info';
             }
         },
         statusLabel(status) {
             switch (status) {
-                case 'SUCCESS': return '执行成功';
-                case 'FAILED': return '执行失败';
+                case 'SUCCESS': return '成功';
+                case 'FAILED': return '失败';
+                case 'CANCELLED': return '已取消';
                 case 'RUNNING': return '运行中';
                 case 'PENDING': return '等待中';
                 default: return status;
+            }
+        },
+        taskTypeLabel(taskType) {
+            switch (taskType) {
+                case 'PREVIEW': return '预览';
+                case 'EXECUTE': return '写入';
+                default: return taskType || '写入';
             }
         },
         formatRuleType(type) {

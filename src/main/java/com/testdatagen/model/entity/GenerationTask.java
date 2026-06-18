@@ -56,6 +56,26 @@ public class GenerationTask {
 
     private Integer totalCellCount = 0;
 
+    /** 任务类型：PREVIEW（仅预览）或 EXECUTE（写入数据库） */
+    @Column(name = "task_type", length = 20)
+    private String taskType = "EXECUTE";
+
+    /** 已完成的表数量（用于进度跟踪） */
+    @Column(name = "completed_tables")
+    private Integer completedTables = 0;
+
+    /** 需要处理的总表数量 */
+    @Column(name = "total_tables")
+    private Integer totalTables = 0;
+
+    /** 当前正在处理的表名 */
+    @Column(name = "current_table", length = 100)
+    private String currentTable;
+
+    /** 关联的内存预览任务ID（用于实时进度轮询） */
+    @Column(name = "preview_task_id", length = 16)
+    private String previewTaskId;
+
     @PrePersist
     protected void onCreate() {
         startedAt = LocalDateTime.now();
@@ -97,4 +117,14 @@ public class GenerationTask {
     public void setRegeneratedCellCount(Integer regeneratedCellCount) { this.regeneratedCellCount = regeneratedCellCount; }
     public Integer getTotalCellCount() { return totalCellCount; }
     public void setTotalCellCount(Integer totalCellCount) { this.totalCellCount = totalCellCount; }
+    public String getTaskType() { return taskType; }
+    public void setTaskType(String taskType) { this.taskType = taskType; }
+    public Integer getCompletedTables() { return completedTables; }
+    public void setCompletedTables(Integer completedTables) { this.completedTables = completedTables; }
+    public Integer getTotalTables() { return totalTables; }
+    public void setTotalTables(Integer totalTables) { this.totalTables = totalTables; }
+    public String getCurrentTable() { return currentTable; }
+    public void setCurrentTable(String currentTable) { this.currentTable = currentTable; }
+    public String getPreviewTaskId() { return previewTaskId; }
+    public void setPreviewTaskId(String previewTaskId) { this.previewTaskId = previewTaskId; }
 }

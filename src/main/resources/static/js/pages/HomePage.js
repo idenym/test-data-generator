@@ -2,7 +2,7 @@ const HomePage = {
     emits: ['new-task', 'view-detail'],
     template: `
     <div>
-        <!-- Hero Section - 紧凑横向布局 -->
+        <!-- Hero Section -->
         <div class="home-hero home-hero-compact">
             <div class="home-hero-content">
                 <h1 class="home-hero-title">测试数据构造工具</h1>
@@ -34,7 +34,7 @@ const HomePage = {
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
                 <div class="card-title" style="margin-bottom: 0;">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    执行历史
+                    任务历史
                     <span class="tag tag-ghost" style="margin-left: var(--space-2);">{{ tasks.length }}</span>
                 </div>
                 <button class="btn btn-ghost btn-sm" @click="loadTasks" :disabled="loading">
@@ -57,7 +57,7 @@ const HomePage = {
                 <div class="empty-state-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                 </div>
-                <div class="empty-state-title">还没有执行记录</div>
+                <div class="empty-state-title">还没有任务记录</div>
                 <div class="empty-state-desc">点击「新建任务」开始使用</div>
             </div>
 
@@ -67,12 +67,22 @@ const HomePage = {
                      class="task-card task-card-row" @click="$emit('view-detail', task.id)">
                     <div class="task-card-header">
                         <div class="task-card-id">#{{ task.id }}</div>
-                        <div class="task-card-status">
-                            <span class="status-dot" :class="statusDotClass(task.status)"></span>
-                            <span class="tag" :class="'tag-' + statusTagType(task.status)">{{ statusLabel(task.status) }}</span>
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <span v-if="task.taskType" class="tag tag-ghost">{{ taskTypeLabel(task.taskType) }}</span>
+                            <div class="task-card-status">
+                                <span class="status-dot" :class="statusDotClass(task.status)"></span>
+                                <span class="tag" :class="'tag-' + statusTagType(task.status)">{{ statusLabel(task.status) }}</span>
+                            </div>
                         </div>
                     </div>
                     <div class="task-card-sql">{{ task.inputSql || '—' }}</div>
+
+                    <!-- 运行中进度 -->
+                    <div v-if="task.status === 'RUNNING' && task.currentTable" class="task-card-analysis">
+                        <span class="task-badge" style="background: var(--warning-bg); color: var(--warning);">
+                            {{ task.currentTable }} ({{ task.completedTables || 0 }}/{{ task.totalTables || 0 }})
+                        </span>
+                    </div>
 
                     <!-- 表结构摘要 -->
                     <div v-if="getAnalysis(task)" class="task-card-analysis">
@@ -122,6 +132,7 @@ const HomePage = {
             analysisCache: {},
             currentPage: 1,
             pageSize: 10,
+            autoRefreshTimer: null,
         };
     },
     computed: {
@@ -138,23 +149,36 @@ const HomePage = {
             const start = (this.currentPage - 1) * this.pageSize;
             return this.tasks.slice(start, start + this.pageSize);
         },
+        hasRunningTasks() {
+            return this.tasks.some(t => t.status === 'RUNNING' || t.status === 'PENDING');
+        },
     },
     mounted() {
         this.loadTasks();
+    },
+    watch: {
+        hasRunningTasks(val) {
+            if (val && !this.autoRefreshTimer) {
+                this.startAutoRefresh();
+            } else if (!val && this.autoRefreshTimer) {
+                this.stopAutoRefresh();
+            }
+        },
+    },
+    beforeUnmount() {
+        this.stopAutoRefresh();
     },
     methods: {
         async loadTasks() {
             this.loading = true;
             try {
                 this.tasks = await API.listHistory();
-                // 预解析 analysisSnapshot
                 this.analysisCache = {};
                 this.tasks.forEach(t => {
                     if (t.analysisSnapshot) {
                         try { this.analysisCache[t.id] = JSON.parse(t.analysisSnapshot); } catch(e) {}
                     }
                 });
-                // 重置到第一页
                 if (this.currentPage > this.totalPages && this.totalPages > 0) {
                     this.currentPage = 1;
                 }
@@ -163,6 +187,18 @@ const HomePage = {
             }
             this.loading = false;
         },
+        startAutoRefresh() {
+            if (this.autoRefreshTimer) return;
+            this.autoRefreshTimer = setInterval(() => {
+                if (this.hasRunningTasks) this.loadTasks();
+            }, 5000);
+        },
+        stopAutoRefresh() {
+            if (this.autoRefreshTimer) {
+                clearInterval(this.autoRefreshTimer);
+                this.autoRefreshTimer = null;
+            }
+        },
         getAnalysis(task) {
             return this.analysisCache[task.id] || null;
         },
@@ -170,6 +206,7 @@ const HomePage = {
             switch (status) {
                 case 'SUCCESS': return 'status-success';
                 case 'FAILED': return 'status-danger';
+                case 'CANCELLED': return 'status-muted';
                 case 'RUNNING': return 'status-warning';
                 default: return 'status-info';
             }
@@ -178,6 +215,7 @@ const HomePage = {
             switch (status) {
                 case 'SUCCESS': return 'success';
                 case 'FAILED': return 'danger';
+                case 'CANCELLED': return 'muted';
                 case 'RUNNING': return 'warning';
                 default: return 'ghost';
             }
@@ -186,9 +224,17 @@ const HomePage = {
             switch (status) {
                 case 'SUCCESS': return '成功';
                 case 'FAILED': return '失败';
+                case 'CANCELLED': return '已取消';
                 case 'RUNNING': return '运行中';
                 case 'PENDING': return '等待中';
                 default: return status;
+            }
+        },
+        taskTypeLabel(taskType) {
+            switch (taskType) {
+                case 'PREVIEW': return '预览';
+                case 'EXECUTE': return '写入';
+                default: return taskType || '写入';
             }
         },
         formatTime(timeStr) {

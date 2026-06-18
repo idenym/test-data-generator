@@ -9,6 +9,7 @@ import com.testdatagen.model.dto.DataPreviewResponse;
 import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.dto.TableMetadata;
+import com.testdatagen.exception.TaskCancelledException;
 import com.testdatagen.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -128,6 +129,92 @@ public class DataGenerationPipeline {
         response.setTableData(orderedData);
         response.setGenerationOrder(analysisResult.getGenerationOrder());
         return response;
+    }
+
+    /**
+     * 带进度回调的预览方法（异步版本）。
+     * 在每个依赖层级的表处理前后调用 callback 上报进度，并在关键节点检查取消标志。
+     */
+    public DataPreviewResponse preview(DataGenRequest request, SqlAnalysisResult analysisResult,
+                                        ProgressCallback callback) {
+        DataPreviewResponse response = new DataPreviewResponse();
+        Map<String, List<Map<String, Object>>> tableData = new ConcurrentHashMap<>();
+        int previewRows = request.getRowCount();
+
+        Map<String, List<Object>> generatedPkMap = new ConcurrentHashMap<>();
+
+        List<List<String>> levels = buildDependencyLevels(analysisResult);
+
+        // 计算表总数
+        int totalTables = 0;
+        for (List<String> level : levels) {
+            totalTables += level.size();
+        }
+        int tableIndex = 0;
+
+        for (List<String> level : levels) {
+            // 取消检查点
+            checkCancelled(callback);
+
+            if (level.size() == 1) {
+                String tableName = level.get(0);
+                if (callback != null) callback.onTableStart(tableName, tableIndex, totalTables);
+                generateTablePreviewData(tableName, request, analysisResult, generatedPkMap, tableData, previewRows);
+                if (callback != null) callback.onTableComplete(tableName, tableIndex, totalTables);
+                tableIndex++;
+            } else {
+                // 多表并行 - 先通知所有表开始
+                final int baseIndex = tableIndex;
+                final int total = totalTables;
+                for (int i = 0; i < level.size(); i++) {
+                    if (callback != null) callback.onTableStart(level.get(i), baseIndex + i, total);
+                }
+
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
+                for (int i = 0; i < level.size(); i++) {
+                    final String tableName = level.get(i);
+                    final int idx = baseIndex + i;
+                    futures.add(CompletableFuture.runAsync(() -> {
+                        generateTablePreviewData(tableName, request, analysisResult, generatedPkMap, tableData, previewRows);
+                        if (callback != null) callback.onTableComplete(tableName, idx, total);
+                    }, llmExecutor));
+                }
+
+                try {
+                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                } catch (java.util.concurrent.CompletionException e) {
+                    if (e.getCause() instanceof TaskCancelledException) {
+                        throw (TaskCancelledException) e.getCause();
+                    }
+                    log.error("并行生成预览数据异常: {}", e.getMessage(), e);
+                    throw new RuntimeException("生成预览数据失败: " + e.getMessage(), e);
+                }
+                tableIndex += level.size();
+            }
+
+            // 每层处理完再检查一次
+            checkCancelled(callback);
+        }
+
+        Map<String, List<Map<String, Object>>> orderedData = new LinkedHashMap<>();
+        for (String tableName : analysisResult.getGenerationOrder()) {
+            if (tableData.containsKey(tableName)) {
+                orderedData.put(tableName, tableData.get(tableName));
+            }
+        }
+
+        response.setTableData(orderedData);
+        response.setGenerationOrder(analysisResult.getGenerationOrder());
+        return response;
+    }
+
+    /**
+     * 取消检查点：若 callback 报告已取消，则抛出异常终止流程。
+     */
+    private void checkCancelled(ProgressCallback callback) {
+        if (callback != null && callback.isCancelled()) {
+            throw new TaskCancelledException();
+        }
     }
 
     /**

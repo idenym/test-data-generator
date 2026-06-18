@@ -5,6 +5,7 @@ import com.testdatagen.engine.DataGenerationPipeline;
 import com.testdatagen.model.dto.ColumnMetadata;
 import com.testdatagen.model.dto.DataGenRequest;
 import com.testdatagen.model.dto.DataPreviewResponse;
+import com.testdatagen.model.dto.PreviewStatusResponse;
 import com.testdatagen.model.dto.RegenerateColumnsRequest;
 import com.testdatagen.model.dto.RegenerateColumnsResponse;
 import com.testdatagen.model.dto.SqlAnalysisResult;
@@ -34,6 +35,7 @@ public class DataGeneratorService {
     private final GenerationTaskRepository taskRepository;
     private final RuleService ruleService;
     private final Executor dataGenExecutor;
+    private final PreviewTaskRegistry previewTaskRegistry;
 
     @Value("${app.generation.llm-batch-size:50}")
     private int llmBatchSize;
@@ -48,7 +50,8 @@ public class DataGeneratorService {
                                  DataWriterService dataWriterService,
                                  GenerationTaskRepository taskRepository,
                                  RuleService ruleService,
-                                 @Qualifier("dataGenExecutor") Executor dataGenExecutor) {
+                                 @Qualifier("dataGenExecutor") Executor dataGenExecutor,
+                                 PreviewTaskRegistry previewTaskRegistry) {
         this.sqlParserService = sqlParserService;
         this.connectionService = connectionService;
         this.ruleMatchingEngine = ruleMatchingEngine;
@@ -57,12 +60,43 @@ public class DataGeneratorService {
         this.taskRepository = taskRepository;
         this.ruleService = ruleService;
         this.dataGenExecutor = dataGenExecutor;
+        this.previewTaskRegistry = previewTaskRegistry;
     }
 
     public DataPreviewResponse preview(DataGenRequest request) {
         SqlAnalysisResult analysis = sqlParserService.analyze(request.getConnectionId(), request.getSql());
         DataGenerationPipeline pipeline = createPipeline();
         return pipeline.preview(request, analysis);
+    }
+
+    /**
+     * 提交异步预览任务，返回 SubmitResult 包含 previewTaskId 和 dbTaskId。
+     */
+    public PreviewTaskRegistry.SubmitResult submitPreview(DataGenRequest request) {
+        SqlAnalysisResult analysis = sqlParserService.analyze(request.getConnectionId(), request.getSql());
+        DataGenerationPipeline pipeline = createPipeline();
+        return previewTaskRegistry.submit(request, analysis, pipeline);
+    }
+
+    /**
+     * 查询异步预览任务的状态和进度（通过 previewTaskId）。
+     */
+    public PreviewStatusResponse getPreviewStatus(String taskId) {
+        return previewTaskRegistry.getStatus(taskId);
+    }
+
+    /**
+     * 通过 DB id 查询预览任务的状态和进度（用于详情页轮询）。
+     */
+    public PreviewStatusResponse getPreviewStatusByDbId(Long dbId) {
+        return previewTaskRegistry.getStatusByDbId(dbId);
+    }
+
+    /**
+     * 取消异步预览任务。
+     */
+    public boolean cancelPreview(String taskId) {
+        return previewTaskRegistry.cancel(taskId);
     }
 
     /**
