@@ -1,5 +1,7 @@
 package com.testdatagen.model.dto;
 
+import com.testdatagen.model.enums.DbType;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
@@ -7,6 +9,9 @@ public class ConnectionRequest {
 
     @NotBlank(message = "连接名称不能为空")
     private String name;
+
+    @NotNull(message = "数据库类型不能为空")
+    private DbType dbType = DbType.MYSQL;
 
     @NotBlank(message = "主机地址不能为空")
     private String host;
@@ -26,6 +31,8 @@ public class ConnectionRequest {
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public DbType getDbType() { return dbType; }
+    public void setDbType(DbType dbType) { this.dbType = dbType; }
     public String getHost() { return host; }
     public void setHost(String host) { this.host = host; }
     public Integer getPort() { return port; }

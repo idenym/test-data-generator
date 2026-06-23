@@ -1,5 +1,7 @@
 package com.testdatagen.model.entity;
 
+import com.testdatagen.model.enums.DbType;
+
 import javax.persistence.*;
 import java.time.LocalDateTime;
 
@@ -13,6 +15,10 @@ public class ConnectionConfig {
 
     @Column(nullable = false, length = 100)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "db_type", length = 20)
+    private DbType dbType = DbType.MYSQL;
 
     @Column(nullable = false, length = 255)
     private String host;
@@ -56,6 +62,8 @@ public class ConnectionConfig {
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public DbType getDbType() { return dbType; }
+    public void setDbType(DbType dbType) { this.dbType = dbType; }
     public String getHost() { return host; }
     public void setHost(String host) { this.host = host; }
     public Integer getPort() { return port; }

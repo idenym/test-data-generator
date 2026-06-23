@@ -4,7 +4,7 @@ const ConnectionPage = {
     <div>
         <div class="page-header">
             <h1 class="page-title">数据库连接</h1>
-            <p class="page-desc">配置并选择目标数据库，支持 MySQL 数据源</p>
+            <p class="page-desc">配置并选择目标数据库，支持 MySQL / GaussDB / TDSQL / Hive</p>
         </div>
 
         <!-- 新建/编辑 连接表单 -->
@@ -13,7 +13,16 @@ const ConnectionPage = {
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 {{ editingId ? '编辑连接' : '新建连接' }}
             </div>
-            <div class="form-row form-row-3">
+            <div class="form-row form-row-4">
+                <div class="form-group">
+                    <label class="form-label">数据库类型</label>
+                    <select class="inline-input" v-model="form.dbType" @change="onDbTypeChange">
+                        <option value="MYSQL">MySQL</option>
+                        <option value="GAUSSDB">GaussDB</option>
+                        <option value="TDSQL">TDSQL</option>
+                        <option value="HIVE">Hive</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label class="form-label">连接名称</label>
                     <input class="inline-input" v-model="form.name" placeholder="例如: 测试库">
@@ -24,7 +33,7 @@ const ConnectionPage = {
                 </div>
                 <div class="form-group">
                     <label class="form-label">端口</label>
-                    <input class="inline-input inline-input-mono" v-model.number="form.port" type="number" min="1" max="65535" placeholder="3306">
+                    <input class="inline-input inline-input-mono" v-model.number="form.port" type="number" min="1" max="65535" :placeholder="defaultPort">
                 </div>
             </div>
             <div class="form-row form-row-3">
@@ -85,6 +94,7 @@ const ConnectionPage = {
                     <div class="conn-card-name">
                         <span class="status-dot" :class="selectedId === conn.id ? 'status-success' : 'status-info'"></span>
                         {{ conn.name }}
+                        <span class="db-type-badge" :class="'db-' + (conn.dbType || 'MYSQL')">{{ dbTypeLabel(conn.dbType) }}</span>
                     </div>
                     <div class="conn-card-info">{{ conn.host }}:{{ conn.port }} / {{ conn.databaseName }}</div>
                     <div class="conn-card-actions">
@@ -107,7 +117,7 @@ const ConnectionPage = {
     `,
     data() {
         return {
-            form: { name: '', host: '127.0.0.1', port: 3306, username: 'root', password: '', databaseName: '', extraParams: '' },
+            form: { dbType: 'MYSQL', name: '', host: '127.0.0.1', port: 3306, username: 'root', password: '', databaseName: '', extraParams: '' },
             connections: [],
             selectedId: null,
             editingId: null,
@@ -115,6 +125,12 @@ const ConnectionPage = {
             saving: false,
             testResult: null,
         };
+    },
+    computed: {
+        defaultPort() {
+            const ports = { MYSQL: 3306, GAUSSDB: 5432, TDSQL: 3306, HIVE: 10000 };
+            return ports[this.form.dbType] || 3306;
+        }
     },
     async mounted() {
         await this.loadConnections();
@@ -170,6 +186,7 @@ const ConnectionPage = {
         editConnection(conn) {
             this.editingId = conn.id;
             this.form = {
+                dbType: conn.dbType || 'MYSQL',
                 name: conn.name,
                 host: conn.host,
                 port: conn.port,
@@ -194,7 +211,7 @@ const ConnectionPage = {
             }
         },
         resetForm() {
-            this.form = { name: '', host: '127.0.0.1', port: 3306, username: 'root', password: '', databaseName: '', extraParams: '' };
+            this.form = { dbType: 'MYSQL', name: '', host: '127.0.0.1', port: 3306, username: 'root', password: '', databaseName: '', extraParams: '' };
             this.editingId = null;
             this.testResult = null;
         },
@@ -204,6 +221,15 @@ const ConnectionPage = {
                 return;
             }
             this.$emit('next');
+        },
+        onDbTypeChange() {
+            // 自动切换默认端口
+            const ports = { MYSQL: 3306, GAUSSDB: 5432, TDSQL: 3306, HIVE: 10000 };
+            this.form.port = ports[this.form.dbType] || 3306;
+        },
+        dbTypeLabel(dbType) {
+            const labels = { MYSQL: 'MySQL', GAUSSDB: 'GaussDB', TDSQL: 'TDSQL', HIVE: 'Hive' };
+            return labels[dbType] || dbType || 'MySQL';
         },
     },
 };

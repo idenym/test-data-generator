@@ -1,5 +1,6 @@
 package com.testdatagen.service;
 
+import com.testdatagen.model.enums.DbType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,9 +26,21 @@ public class DataWriterService {
     /**
      * 在同一个事务中写入多张表的数据。
      * 任意一张表写入失败，所有已写入的数据都会回滚。
+     * Hive 不支持事务，直接逐表写入。
      */
     public void writeAllTablesInTransaction(Long connectionId, List<TableWriteTask> tasks, int batchSize) {
         if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+
+        DbType dbType = connectionService.getDbType(connectionId);
+
+        if (!dbType.supportsTransaction()) {
+            // Hive: 不支持事务，逐表写入
+            for (TableWriteTask task : tasks) {
+                if (task.getRows().isEmpty() || task.getColumns().isEmpty()) continue;
+                writeRows(connectionId, task.getTableName(), task.getColumns(), task.getRows(), batchSize);
+            }
             return;
         }
 
@@ -38,7 +51,7 @@ public class DataWriterService {
                     if (task.getRows().isEmpty() || task.getColumns().isEmpty()) {
                         continue;
                     }
-                    writeRowsOnConnection(conn, task.getTableName(), task.getColumns(), task.getRows(), batchSize);
+                    writeRowsOnConnection(conn, task.getTableName(), task.getColumns(), task.getRows(), batchSize, dbType);
                 }
                 conn.commit();
                 log.info("事务提交成功，共写入 {} 张表", tasks.size());
@@ -58,13 +71,22 @@ public class DataWriterService {
      */
     public List<Object> writeRowsOnConnection(Connection conn, String tableName, List<String> columns,
                                                List<Map<String, Object>> rows, int batchSize) {
+        return writeRowsOnConnection(conn, tableName, columns, rows, batchSize, DbType.MYSQL);
+    }
+
+    /**
+     * 使用已有连接写入数据（不管理事务），返回自增主键列表。
+     * 由调用方负责事务管理（commit/rollback）。
+     */
+    public List<Object> writeRowsOnConnection(Connection conn, String tableName, List<String> columns,
+                                               List<Map<String, Object>> rows, int batchSize, DbType dbType) {
         List<Object> generatedKeys = new ArrayList<>();
 
         if (rows.isEmpty() || columns.isEmpty()) {
             return generatedKeys;
         }
 
-        String sql = buildInsertSql(tableName, columns);
+        String sql = buildInsertSql(tableName, columns, dbType);
         log.info("Writing {} rows to table {}", rows.size(), tableName);
 
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -174,14 +196,21 @@ public class DataWriterService {
             return generatedKeys;
         }
 
+        DbType dbType = connectionService.getDbType(connectionId);
+
         try (Connection conn = connectionService.getConnection(connectionId)) {
-            conn.setAutoCommit(false);
-            try {
-                generatedKeys = writeRowsOnConnection(conn, tableName, columns, rows, batchSize);
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
+            if (dbType.supportsTransaction()) {
+                conn.setAutoCommit(false);
+                try {
+                    generatedKeys = writeRowsOnConnection(conn, tableName, columns, rows, batchSize, dbType);
+                    conn.commit();
+                } catch (Exception e) {
+                    conn.rollback();
+                    throw e;
+                }
+            } else {
+                // Hive: 不支持事务，直接写入
+                generatedKeys = writeRowsOnConnection(conn, tableName, columns, rows, batchSize, dbType);
             }
         } catch (SQLException e) {
             throw new RuntimeException("写入数据到表 " + tableName + " 失败: " + e.getMessage(), e);
@@ -191,11 +220,16 @@ public class DataWriterService {
     }
 
     private String buildInsertSql(String tableName, List<String> columns) {
+        return buildInsertSql(tableName, columns, DbType.MYSQL);
+    }
+
+    private String buildInsertSql(String tableName, List<String> columns, DbType dbType) {
+        String q = dbType != null ? dbType.getQuoteChar() : "`";
         StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO `").append(tableName).append("` (");
+        sb.append("INSERT INTO ").append(q).append(tableName).append(q).append(" (");
         for (int i = 0; i < columns.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append("`").append(columns.get(i)).append("`");
+            sb.append(q).append(columns.get(i)).append(q);
         }
         sb.append(") VALUES (");
         for (int i = 0; i < columns.size(); i++) {

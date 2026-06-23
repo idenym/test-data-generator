@@ -572,6 +572,37 @@ body {
   gap: var(--space-2);
 }
 
+/* ── DB Type Badge ── */
+.db-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.6;
+}
+
+.db-type-badge.db-MYSQL {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.db-type-badge.db-GAUSSDB {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.db-type-badge.db-TDSQL {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+}
+
+.db-type-badge.db-HIVE {
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+}
+
 /* ── SQL Editor ── */
 .sql-editor-wrap {
   position: relative;

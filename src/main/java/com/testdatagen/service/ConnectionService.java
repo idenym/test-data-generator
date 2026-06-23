@@ -3,6 +3,7 @@ package com.testdatagen.service;
 import com.testdatagen.model.dto.ConnectionRequest;
 import com.testdatagen.model.dto.ConnectionTestResult;
 import com.testdatagen.model.entity.ConnectionConfig;
+import com.testdatagen.model.enums.DbType;
 import com.testdatagen.repository.ConnectionConfigRepository;
 import com.testdatagen.security.CurrentUserContext;
 import com.testdatagen.util.EncryptionUtil;
@@ -47,6 +48,7 @@ public class ConnectionService {
     public ConnectionConfig save(ConnectionRequest request) {
         ConnectionConfig config = new ConnectionConfig();
         config.setName(request.getName());
+        config.setDbType(request.getDbType());
         config.setHost(request.getHost());
         config.setPort(request.getPort());
         config.setUsername(request.getUsername());
@@ -60,6 +62,7 @@ public class ConnectionService {
     public ConnectionConfig update(Long id, ConnectionRequest request) {
         ConnectionConfig config = getById(id);
         config.setName(request.getName());
+        config.setDbType(request.getDbType());
         config.setHost(request.getHost());
         config.setPort(request.getPort());
         config.setUsername(request.getUsername());
@@ -78,7 +81,7 @@ public class ConnectionService {
     public ConnectionTestResult testConnection(ConnectionRequest request) {
         long start = System.currentTimeMillis();
         try (Connection conn = connectionFactory.createConnection(
-                request.getHost(), request.getPort(),
+                request.getDbType(), request.getHost(), request.getPort(),
                 request.getUsername(), request.getPassword(),
                 request.getDatabaseName(), request.getExtraParams())) {
             DatabaseMetaData meta = conn.getMetaData();
@@ -97,5 +100,13 @@ public class ConnectionService {
         } catch (Exception e) {
             throw new RuntimeException("无法连接到数据库: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 获取连接配置的数据库类型
+     */
+    public DbType getDbType(Long connectionId) {
+        ConnectionConfig config = getById(connectionId);
+        return config.getDbType() != null ? config.getDbType() : DbType.MYSQL;
     }
 }
