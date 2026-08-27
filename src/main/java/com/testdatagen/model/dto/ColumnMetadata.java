@@ -5,6 +5,8 @@ public class ColumnMetadata {
     private String dataType;
     private String columnType;
     private Integer maxLength;
+    /** 数值列的小数位数（DECIMAL/NUMERIC 的 scale） */
+    private Integer numericScale;
     private boolean nullable;
     private boolean primaryKey;
     private boolean autoIncrement;
@@ -21,6 +23,8 @@ public class ColumnMetadata {
     public void setColumnType(String columnType) { this.columnType = columnType; }
     public Integer getMaxLength() { return maxLength; }
     public void setMaxLength(Integer maxLength) { this.maxLength = maxLength; }
+    public Integer getNumericScale() { return numericScale; }
+    public void setNumericScale(Integer numericScale) { this.numericScale = numericScale; }
     public boolean isNullable() { return nullable; }
     public void setNullable(boolean nullable) { this.nullable = nullable; }
     public boolean isPrimaryKey() { return primaryKey; }

@@ -15,11 +15,18 @@ public class DefaultGenerator implements FieldGenerator {
     private final String dataType;
     private final Integer maxLength;
     private final boolean nullable;
+    /** 数值列小数位数（DECIMAL 的 scale）；此时 maxLength 表示总精度 */
+    private final Integer numericScale;
 
     public DefaultGenerator(String dataType, Integer maxLength, boolean nullable) {
+        this(dataType, maxLength, nullable, null);
+    }
+
+    public DefaultGenerator(String dataType, Integer maxLength, boolean nullable, Integer numericScale) {
         this.dataType = dataType;
         this.maxLength = maxLength;
         this.nullable = nullable;
+        this.numericScale = numericScale;
     }
 
     @Override
@@ -41,7 +48,7 @@ public class DefaultGenerator implements FieldGenerator {
             case "Double":
                 return random.nextDouble() * 10000;
             case "BigDecimal":
-                return BigDecimal.valueOf(random.nextDouble() * 10000).setScale(2, BigDecimal.ROUND_HALF_UP);
+                return randomDecimal(random);
             case "Boolean":
                 return random.nextBoolean();
             case "Date":
@@ -57,6 +64,26 @@ public class DefaultGenerator implements FieldGenerator {
                 int len = maxLength != null ? Math.min(maxLength, 20) : 10;
                 return generateRandomString(len);
         }
+    }
+
+    /**
+     * 生成 DECIMAL 值：已知精度/小数位时严格控制在列范围内，
+     * 避免写入时 Out of range（如 DECIMAL(6,4) 最大 99.9999）。
+     */
+    private BigDecimal randomDecimal(ThreadLocalRandom random) {
+        if (maxLength != null && maxLength > 0) {
+            int scale = numericScale != null && numericScale >= 0 ? Math.min(numericScale, maxLength) : 2;
+            int intDigits = maxLength - scale;
+            if (intDigits < 0) {
+                intDigits = 0;
+                scale = maxLength;
+            }
+            double max = Math.pow(10, intDigits);
+            BigDecimal val = BigDecimal.valueOf(random.nextDouble() * max);
+            // ROUND_DOWN 确保不会因进位触顶越界
+            return val.setScale(scale, BigDecimal.ROUND_DOWN);
+        }
+        return BigDecimal.valueOf(random.nextDouble() * 10000).setScale(2, BigDecimal.ROUND_HALF_UP);
     }
 
     private String generateRandomString(int maxLen) {

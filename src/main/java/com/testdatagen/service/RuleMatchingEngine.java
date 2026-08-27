@@ -68,7 +68,7 @@ public class RuleMatchingEngine {
 
             // 5. Default generator based on data type
             if (generator == null) {
-                generator = new DefaultGenerator(col.getDataType(), col.getMaxLength(), col.isNullable());
+                generator = new DefaultGenerator(col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
             }
 
             generators.put(col.getColumnName(), generator);
@@ -82,7 +82,7 @@ public class RuleMatchingEngine {
             if (tableName.equalsIgnoreCase(rule.getTableName()) &&
                 col.getColumnName().equalsIgnoreCase(rule.getColumnName())) {
                 return GeneratorFactory.create(rule.getRuleType(), rule.getRuleConfig(),
-                        col.getDataType(), col.getMaxLength(), col.isNullable());
+                        col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
             }
         }
         return null;
@@ -97,7 +97,7 @@ public class RuleMatchingEngine {
 
             if (tableMatch && columnMatch && typeMatch) {
                 return GeneratorFactory.create(rule.getRuleType(), rule.getRuleConfig(),
-                        col.getDataType(), col.getMaxLength(), col.isNullable());
+                        col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
             }
         }
         return null;
@@ -109,22 +109,22 @@ public class RuleMatchingEngine {
 
         // Email pattern
         if (name.contains("email") || name.contains("mail")) {
-            return GeneratorFactory.create(RuleType.REGEX, "{\"pattern\":\"[a-z]{5,8}@(gmail|qq|163|outlook)\\\\.com\"}", col.getDataType(), col.getMaxLength(), col.isNullable());
+            return GeneratorFactory.create(RuleType.REGEX, "{\"pattern\":\"[a-z]{5,8}@(gmail|qq|163|outlook)\\\\.com\"}", col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
         }
 
         // Phone pattern
         if (name.contains("phone") || name.contains("mobile") || name.contains("tel")) {
-            return GeneratorFactory.create(RuleType.REGEX, "{\"pattern\":\"1[3-9][0-9]{9}\"}", col.getDataType(), col.getMaxLength(), col.isNullable());
+            return GeneratorFactory.create(RuleType.REGEX, "{\"pattern\":\"1[3-9][0-9]{9}\"}", col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
         }
 
         // Status / type fields
         if (name.equals("status")) {
-            return GeneratorFactory.create(RuleType.ENUM, "{\"values\":[\"0\",\"1\"],\"weights\":[0.3,0.7]}", col.getDataType(), col.getMaxLength(), col.isNullable());
+            return GeneratorFactory.create(RuleType.ENUM, "{\"values\":[\"0\",\"1\"],\"weights\":[0.3,0.7]}", col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
         }
 
         // Gender
         if (name.equals("gender") || name.equals("sex")) {
-            return GeneratorFactory.create(RuleType.ENUM, "{\"values\":[\"M\",\"F\"],\"weights\":[0.5,0.5]}", col.getDataType(), col.getMaxLength(), col.isNullable());
+            return GeneratorFactory.create(RuleType.ENUM, "{\"values\":[\"M\",\"F\"],\"weights\":[0.5,0.5]}", col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
         }
 
         // MySQL ENUM type
@@ -137,7 +137,7 @@ public class RuleMatchingEngine {
                     configBuilder.append("\"").append(enumValues.get(i)).append("\"");
                 }
                 configBuilder.append("]}");
-                return GeneratorFactory.create(RuleType.ENUM, configBuilder.toString(), col.getDataType(), col.getMaxLength(), col.isNullable());
+                return GeneratorFactory.create(RuleType.ENUM, configBuilder.toString(), col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
             }
         }
 
@@ -145,7 +145,7 @@ public class RuleMatchingEngine {
         if (name.contains("created") || name.contains("updated") || name.contains("create_time") || name.contains("update_time")) {
             return GeneratorFactory.create(RuleType.RANGE,
                     "{\"type\":\"datetime\",\"min\":\"2024-01-01T00:00:00\",\"max\":\"2025-12-31T23:59:59\"}",
-                    col.getDataType(), col.getMaxLength(), col.isNullable());
+                    col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
         }
 
         return null;

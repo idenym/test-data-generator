@@ -11,11 +11,14 @@ import com.testdatagen.model.dto.SqlAnalysisResult;
 import com.testdatagen.model.dto.TableMetadata;
 import com.testdatagen.exception.TaskCancelledException;
 import com.testdatagen.service.*;
+import com.testdatagen.util.SqlTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -627,7 +630,7 @@ public class DataGenerationPipeline {
                     // AI generation failed or returned empty - fallback to default generator
                     log.warn("AI生成失败，使用默认规则生成列 {}.{} 的数据", tableName, col.getColumnName());
                     DefaultGenerator defaultGen = new DefaultGenerator(
-                            col.getDataType(), col.getMaxLength(), col.isNullable());
+                            col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
                     // Fill remaining values using default generator
                     for (int i = 0; i < needed; i++) {
                         llmGen.addValues(Collections.singletonList(
@@ -651,7 +654,7 @@ public class DataGenerationPipeline {
             if (llmGen != null && llmGen.getPoolSize() == 0) {
                 log.warn("列 {}.{} 使用默认生成器作为异常回退", tableName, col.getColumnName());
                 DefaultGenerator defaultGen = new DefaultGenerator(
-                        col.getDataType(), col.getMaxLength(), col.isNullable());
+                        col.getDataType(), col.getMaxLength(), col.isNullable(), col.getNumericScale());
                 for (int i = 0; i < totalRows; i++) {
                     llmGen.addValues(Collections.singletonList(
                             defaultGen.generate(null)));
@@ -682,19 +685,53 @@ public class DataGenerationPipeline {
     }
 
     /**
-     * 根据列的 maxLength 约束截断字符串值，防止写入时 Data too long 错误。
-     * 仅对 String 类型值生效，其他类型原样返回。
+     * 根据列的 maxLength 约束截断字符串值，防止写入时 Data too long 错误；
+     * 同时对 DECIMAL 列的数值做范围钳制，防止 Out of range 错误。
      */
     private Object truncateIfNeeded(Object value, ColumnMetadata col) {
-        if (!(value instanceof String)) return value;
-        String str = (String) value;
-        Integer maxLen = col.getMaxLength();
-        if (maxLen == null || maxLen <= 0 || str.length() <= maxLen) return value;
-        String truncated = str.substring(0, maxLen);
-        log.debug("截断字段 {}: 原长度={}, maxLength={}, 截断后='{}'",
-                col.getColumnName(), str.length(), maxLen,
-                truncated.length() > 20 ? truncated.substring(0, 20) + "..." : truncated);
-        return truncated;
+        if (value instanceof String) {
+            String str = (String) value;
+            Integer maxLen = col.getMaxLength();
+            if (maxLen == null || maxLen <= 0 || str.length() <= maxLen) return value;
+            String truncated = str.substring(0, maxLen);
+            log.debug("截断字段 {}: 原长度={}, maxLength={}, 截断后='{}'",
+                    col.getColumnName(), str.length(), maxLen,
+                    truncated.length() > 20 ? truncated.substring(0, 20) + "..." : truncated);
+            return truncated;
+        }
+        if (value instanceof Number) {
+            return clampDecimalIfNeeded((Number) value, col);
+        }
+        return value;
+    }
+
+    /**
+     * DECIMAL 列数值范围钳制：已知精度/小数位时，超出列上限的值钳制到边界，
+     * 避免写入时 Data truncation: Out of range（兼底 LLM/REGEX/RANGE 等生成器的越界输出）。
+     */
+    private Object clampDecimalIfNeeded(Number value, ColumnMetadata col) {
+        Integer precision = col.getMaxLength();
+        if (precision == null || precision <= 0) return value;
+        if (!"BigDecimal".equals(SqlTypeMapper.toJavaType(col.getDataType()))) return value;
+
+        int scale = col.getNumericScale() != null && col.getNumericScale() >= 0
+                ? Math.min(col.getNumericScale(), precision) : 0;
+        BigDecimal max = BigDecimal.TEN.pow(precision - scale).subtract(BigDecimal.ONE.movePointLeft(scale));
+
+        BigDecimal bd;
+        try {
+            bd = new BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            return value;
+        }
+        bd = bd.setScale(scale, RoundingMode.HALF_UP);
+        if (bd.abs().compareTo(max) > 0) {
+            BigDecimal clamped = bd.signum() < 0 ? max.negate() : max;
+            log.warn("数值超出列范围，已钳制: 列 {} 值 {} -> {}, 列定义 DECIMAL({},{})",
+                    col.getColumnName(), bd, clamped, precision, scale);
+            return clamped;
+        }
+        return bd;
     }
 
     private void trackGeneratedPks(TableMetadata tableMeta, List<Map<String, Object>> rows,

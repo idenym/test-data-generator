@@ -101,6 +101,9 @@ public class MetadataService {
                 col.setColumnType(rs.getString("TYPE_NAME"));
                 int size = rs.getInt("COLUMN_SIZE");
                 col.setMaxLength(size > 0 ? size : null);
+                // DECIMAL/NUMERIC 的小数位数（非数值列为 0/空）
+                int decDigits = rs.getInt("DECIMAL_DIGITS");
+                col.setNumericScale(rs.wasNull() ? null : decDigits);
                 col.setNullable("YES".equals(rs.getString("IS_NULLABLE")) || rs.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                 // JDBC 标准 getColumns() 的默认值列名为 COLUMN_DEF（非 information_schema 的 COLUMN_DEFAULT）
                 col.setDefaultValue(rs.getString("COLUMN_DEF"));
@@ -178,7 +181,7 @@ public class MetadataService {
         // 列信息
         List<ColumnMetadata> columns = new ArrayList<>();
         String columnSql = "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, CHARACTER_MAXIMUM_LENGTH, " +
-                "IS_NULLABLE, COLUMN_KEY, EXTRA, COLUMN_DEFAULT, COLUMN_COMMENT " +
+                "NUMERIC_SCALE, IS_NULLABLE, COLUMN_KEY, EXTRA, COLUMN_DEFAULT, COLUMN_COMMENT " +
                 "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? " +
                 "ORDER BY ORDINAL_POSITION";
         try (PreparedStatement ps = conn.prepareStatement(columnSql)) {
@@ -193,6 +196,10 @@ public class MetadataService {
                     Long maxLen = rs.getObject("CHARACTER_MAXIMUM_LENGTH") != null ?
                             rs.getLong("CHARACTER_MAXIMUM_LENGTH") : null;
                     col.setMaxLength(maxLen != null ? maxLen.intValue() : null);
+                    // DECIMAL/NUMERIC 的小数位数（非数值列为 NULL）
+                    Integer numScale = rs.getObject("NUMERIC_SCALE") != null ?
+                            rs.getInt("NUMERIC_SCALE") : null;
+                    col.setNumericScale(numScale);
                     col.setNullable("YES".equals(rs.getString("IS_NULLABLE")));
                     col.setPrimaryKey("PRI".equals(rs.getString("COLUMN_KEY")));
                     col.setAutoIncrement(rs.getString("EXTRA") != null &&
@@ -290,7 +297,7 @@ public class MetadataService {
         // 列信息
         List<ColumnMetadata> columns = new ArrayList<>();
         String colSql = "SELECT c.column_name, c.data_type, c.udt_name, c.character_maximum_length, " +
-                "c.is_nullable, c.column_default, " +
+                "c.numeric_scale, c.is_nullable, c.column_default, " +
                 "pgd.description AS column_comment " +
                 "FROM information_schema.columns c " +
                 "LEFT JOIN pg_catalog.pg_statio_all_tables st ON c.table_schema = st.schemaname AND c.table_name = st.relname " +
@@ -309,6 +316,10 @@ public class MetadataService {
                     Long maxLen = rs.getObject("character_maximum_length") != null ?
                             rs.getLong("character_maximum_length") : null;
                     col.setMaxLength(maxLen != null ? maxLen.intValue() : null);
+                    // NUMERIC/DECIMAL 的小数位数（非数值列为 NULL）
+                    Integer numScale = rs.getObject("numeric_scale") != null ?
+                            rs.getInt("numeric_scale") : null;
+                    col.setNumericScale(numScale);
                     col.setNullable("YES".equals(rs.getString("is_nullable")));
                     String defaultVal = rs.getString("column_default");
                     col.setDefaultValue(defaultVal);
@@ -423,6 +434,8 @@ public class MetadataService {
                 String dataType = rs.getString(2);
                 col.setDataType(dataType != null ? dataType.trim() : "string");
                 col.setColumnType(dataType != null ? dataType.trim() : "string");
+                // 从 decimal(p,s) 类型声明中解析精度与小数位，避免生成值超出范围
+                parseHiveDecimal(col);
                 col.setNullable(true);
                 String comment = rs.getString(3);
                 if (comment != null && !comment.trim().isEmpty()) {
@@ -438,6 +451,21 @@ public class MetadataService {
 
     private String quoteHive(String name) {
         return "`" + name.replace("`", "``") + "`";
+    }
+
+    /**
+     * 从 Hive 类型声明（如 decimal(6,4)）中解析精度与小数位，填入 maxLength/numericScale。
+     */
+    private void parseHiveDecimal(ColumnMetadata col) {
+        String type = col.getColumnType();
+        if (type == null) return;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("decimal\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(type);
+        if (m.find()) {
+            col.setMaxLength(Integer.parseInt(m.group(1)));
+            col.setNumericScale(Integer.parseInt(m.group(2)));
+        }
     }
 
     // ========== 辅助方法 ==========

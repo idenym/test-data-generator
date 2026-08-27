@@ -11,10 +11,10 @@ import java.util.List;
 
 public class GeneratorFactory {
 
-    public static FieldGenerator create(RuleType ruleType, String ruleConfigJson, String dataType, Integer maxLength, boolean nullable) {
+    public static FieldGenerator create(RuleType ruleType, String ruleConfigJson, String dataType, Integer maxLength, boolean nullable, Integer numericScale) {
         try {
             if (ruleType == null) {
-                return new DefaultGenerator(dataType, maxLength, nullable);
+                return new DefaultGenerator(dataType, maxLength, nullable, numericScale);
             }
 
             JSONObject config = (ruleConfigJson != null && !ruleConfigJson.isEmpty())
@@ -50,7 +50,7 @@ public class GeneratorFactory {
                         }
                     }
                     if (values.isEmpty()) {
-                        return new DefaultGenerator(dataType, maxLength, nullable);
+                        return new DefaultGenerator(dataType, maxLength, nullable, numericScale);
                     }
                     return new EnumGenerator(values, weights);
 
@@ -63,10 +63,10 @@ public class GeneratorFactory {
                     return llmGen;
 
                 default:
-                    return new DefaultGenerator(dataType, maxLength, nullable);
+                    return new DefaultGenerator(dataType, maxLength, nullable, numericScale);
             }
         } catch (Exception e) {
-            return new DefaultGenerator(dataType, maxLength, nullable);
+            return new DefaultGenerator(dataType, maxLength, nullable, numericScale);
         }
     }
 }
