@@ -1,4 +1,5 @@
 # Maven
+# 注：.mvn/maven 内置发行版已移除，内网构建请使用系统 Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -36,6 +37,15 @@ BOOT-INF/
 # Temp files
 jar-contents*.txt
 *.png
+
+# Binary materials / docs artifacts
+*.zip
+*.pdf
+*.docx
+
+# Tool caches
+.codegraph/
+.trae/
 
 # Environment variables (contains secrets)
 .env

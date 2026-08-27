@@ -27,7 +27,7 @@ app:
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}
-    model: ${OPENAI_MODEL:deepseek-v4-pro}
+    model: ${OPENAI_MODEL:deepseek-v4-flash}
     max-tokens: 10000
     temperature: 0.8
     timeout-seconds: 60
@@ -36,10 +36,10 @@ app:
         base-url: ${MIMO_BASE_URL:https://token-plan-cn.xiaomimimo.com/}
         api-key: ${MIMO_API_KEY:}
         name: Mimo V2.5 Pro
-      "[deepseek-v4-pro]":
+      "[deepseek-v4-flash]":
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
         api-key: ${DEEPSEEK_API_KEY:}
-        name: DeepSeek V4 Pro
+        name: DeepSeek V4 Flash
   knowledge-base:
     enabled: ${KB_ENABLED:false}
     base-url: ${KB_BASE_URL:http://localhost:9090}

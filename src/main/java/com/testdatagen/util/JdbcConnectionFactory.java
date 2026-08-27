@@ -23,10 +23,12 @@ public class JdbcConnectionFactory {
     }
 
     public Connection createConnection(ConnectionConfig config) throws SQLException {
+        // 旧数据兼容：多数据库功能上线前保存的连接记录 db_type 为 NULL，默认按 MySQL 处理
+        DbType dbType = config.getDbType() != null ? config.getDbType() : DbType.MYSQL;
         String url = buildJdbcUrl(config);
         String password = config.getEncryptedPassword() != null
                 ? encryptionUtil.decrypt(config.getEncryptedPassword()) : "";
-        loadDriver(config.getDbType());
+        loadDriver(dbType);
         return DriverManager.getConnection(url, config.getUsername(), password);
     }
 
@@ -85,6 +87,7 @@ public class JdbcConnectionFactory {
     }
 
     private void loadDriver(DbType dbType) {
+        if (dbType == null) dbType = DbType.MYSQL;
         String driverClass = dbType.getDriverClassName();
         loadedDrivers.computeIfAbsent(driverClass, cls -> {
             try {

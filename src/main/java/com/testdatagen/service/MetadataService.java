@@ -102,7 +102,8 @@ public class MetadataService {
                 int size = rs.getInt("COLUMN_SIZE");
                 col.setMaxLength(size > 0 ? size : null);
                 col.setNullable("YES".equals(rs.getString("IS_NULLABLE")) || rs.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
-                col.setDefaultValue(rs.getString("COLUMN_DEFAULT"));
+                // JDBC 标准 getColumns() 的默认值列名为 COLUMN_DEF（非 information_schema 的 COLUMN_DEFAULT）
+                col.setDefaultValue(rs.getString("COLUMN_DEF"));
                 col.setComment(rs.getString("REMARKS"));
                 col.setAutoIncrement("YES".equals(rs.getString("IS_AUTOINCREMENT")));
                 columns.add(col);
